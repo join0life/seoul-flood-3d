@@ -15,7 +15,7 @@ function tsType(p: any): string {
       return "string";
     case "BOOLEAN":
       return "boolean";
-    case "SCALAR":
+    case "SCALAR"0:
       return "number";
     case "ENUM":
       return pascal(p.enumType);
