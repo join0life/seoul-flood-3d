@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>0-9 Cesium 검증</title>
+    <script src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"></script>
+    <link
+      href="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Widgets/widgets.css"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body,
+      #map {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #info {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: #fff;
+        padding: 8px 12px;
+        font: 13px/1.5 monospace;
+        white-space: pre;
+        border-radius: 6px;
+        max-width: 420px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="info">건물을 클릭하면 속성이 여기 나와요</div>
+    <script type="module">
+      // Cesium ion 토큰 없이 쓰기: 기본 배경지도(ion)는 끄고 OpenStreetMap 배경만 깔기
+      const viewer = new Cesium.Viewer("map", {
+        baseLayer: Cesium.ImageryLayer.fromProviderAsync(
+          Promise.resolve(
+            new Cesium.OpenStreetMapImageryProvider({
+              url: "https://tile.openstreetmap.org/",
+            }),
+          ),
+        ),
+        geocoder: false,
+        baseLayerPicker: false,
+        timeline: false,
+        animation: false,
+      });
+      // 타일 개수·LOD를 보는 검사 패널 (오른쪽 위)
+      viewer.extend(Cesium.viewerCesium3DTilesInspectorMixin);
+
+      const tileset = await Cesium.Cesium3DTileset.fromUrl(
+        "../data/tiles/gwanak/tileset.json",
+      );
+      viewer.scene.primitives.add(tileset);
+      await viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0, -0.5, 6000));
+
+      // 클릭한 건물의 속성 표시 = featureId → 속성표 연결 확인
+      const info = document.getElementById("info");
+      viewer.screenSpaceEventHandler.setInputAction((e) => {
+        const f = viewer.scene.pick(e.position);
+        if (!(f instanceof Cesium.Cesium3DTileFeature)) {
+          info.textContent = "건물이 아님";
+          return;
+        }
+        const lines = f
+          .getPropertyIds()
+          .map((id) => `${id}: ${f.getProperty(id)}`);
+        info.textContent = `featureId: ${f.featureId}\n` + lines.join("\n");
+        console.log(
+          Object.fromEntries(
+            f.getPropertyIds().map((id) => [id, f.getProperty(id)]),
+          ),
+        );
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+      window.viewer = viewer;
+      window.tileset = tileset; // 콘솔에서 확인용
+    </script>
+  </body>
+</html>

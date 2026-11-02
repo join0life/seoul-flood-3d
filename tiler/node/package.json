@@ -17,6 +17,7 @@
   "devDependencies": {
     "@types/geojson": "^7946.0.16",
     "@types/node": "^26.6.6",
+    "3d-tiles-validator": "^0.6.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
