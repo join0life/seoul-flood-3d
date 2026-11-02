@@ -28,18 +28,53 @@ const bytes = (v: ArrayBufferView) =>
  * GLB 바이너리 구역 재배치: 모든 bufferView 시작 위치를 8바이트 배수로 맞춤.
  * EXT_structural_metadata 규칙상 속성표 값 구역은 정렬돼 있어야 하는데,
  * glTF Transform 4.5.1로 쓰면 이 구역이 정렬 없이 이어 붙어서 표준 검사(3d-tiles-validator)에서 에러가 났음.
+ *
+ * 가정: GLB = 헤더 + JSON 청크 1개 + BIN 청크 1개, 버퍼 1개(BIN)를 모든 bufferView가 씀.
+ * 압축(meshopt 등)이나 외부 버퍼가 들어와 가정이 깨지면 조용히 잘못된 GLB를 만들지 않고 여기서 멈춤.
  */
 function alignBufferViews(glb: Uint8Array): Uint8Array {
+  const fail = (msg: string): never => {
+    throw new Error(`alignBufferViews: ${msg} (GLB 구조가 바뀌었으면 이 함수를 다시 확인)`);
+  };
   const dv = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);
-  const jsonLen = dv.getUint32(12, true);
-  const json = JSON.parse(
-    new TextDecoder().decode(glb.subarray(20, 20 + jsonLen)),
-  );
-  const binStart = 20 + jsonLen + 8;
-  const bin = glb.subarray(
-    binStart,
-    binStart + dv.getUint32(20 + jsonLen, true),
-  );
+  if (glb.byteLength < 12 || dv.getUint32(0, true) !== 0x46546c67)
+    fail("GLB 헤더(magic)가 아님");
+  if (dv.getUint32(4, true) !== 2)
+    fail(`glTF 버전 ${dv.getUint32(4, true)} (2만 지원)`);
+  if (dv.getUint32(8, true) !== glb.byteLength)
+    fail("헤더의 전체 길이와 실제 길이가 다름");
+
+  // 청크를 순서대로 다 읽음: [길이, 종류, 내용]
+  const chunks: { type: number; data: Uint8Array }[] = [];
+  for (let p = 12; p < glb.byteLength; ) {
+    if (p + 8 > glb.byteLength) fail("청크 머리가 잘림");
+    const len = dv.getUint32(p, true);
+    if (p + 8 + len > glb.byteLength) fail("청크 내용이 잘림");
+    chunks.push({
+      type: dv.getUint32(p + 4, true),
+      data: glb.subarray(p + 8, p + 8 + len),
+    });
+    p += 8 + len;
+  }
+  if (
+    chunks.length !== 2 ||
+    chunks[0].type !== 0x4e4f534a ||
+    chunks[1].type !== 0x004e4942
+  )
+    fail(`청크 구성이 [JSON, BIN]이 아님 (청크 ${chunks.length}개)`);
+  const json = JSON.parse(new TextDecoder().decode(chunks[0].data));
+  const bin = chunks[1].data;
+
+  if (json.buffers?.length !== 1)
+    fail(`버퍼가 ${json.buffers?.length ?? 0}개 (1개만 지원)`);
+  if (json.buffers[0].uri !== undefined) fail("버퍼가 외부 파일(uri)을 가리킴");
+  if (json.buffers[0].byteLength > bin.byteLength)
+    fail("버퍼 길이가 BIN 청크보다 김");
+  for (const [i, bv] of (json.bufferViews ?? []).entries()) {
+    if (bv.buffer !== 0) fail(`bufferView ${i}가 버퍼 ${bv.buffer}를 씀`);
+    if ((bv.byteOffset ?? 0) + bv.byteLength > json.buffers[0].byteLength)
+      fail(`bufferView ${i}가 버퍼 범위를 넘음`);
+  }
 
   let size = 0;
   for (const bv of json.bufferViews)

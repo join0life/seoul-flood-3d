@@ -22,8 +22,8 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@gltf-transform/core": "^4.5.1",
-    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
     "earcut": "^3.2.4",
     "flatgeobuf": "^4.6.1"
   }

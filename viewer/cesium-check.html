@@ -3,9 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <title>0-9 Cesium 검증</title>
-    <script src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"></script>
+    <!-- integrity: CDN 파일이 바뀌면 로드 거부. cesium 버전을 올리면 해시도 다시 계산 -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"
+      integrity="sha384-1lWK5deN/B+lLaUw4lk6xKp/L19ii/98SZLk6K8YthDskgvc+GbdixLzbCnSS2Wn"
+      crossorigin="anonymous"
+    ></script>
     <link
       href="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Widgets/widgets.css"
+      integrity="sha384-ghEeMdcWWzRv/BPeUcX835vcKDGrxvROXisl/Btpv3GeekBUXTSPVcFJpI1Tcrgp"
+      crossorigin="anonymous"
       rel="stylesheet"
     />
     <style>
