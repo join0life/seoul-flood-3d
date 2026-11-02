@@ -40,7 +40,7 @@
         "heightSource": {
           "type": "ENUM",
           "enumType": "heightSource",
-          "description": "높이를 어디서 얻었나. DEFAULT면 회색 + 후보 제외  "
+          "description": "높이를 어디서 얻었나. DEFAULT면 후보 제외 + 상세 패널에 높이 정보 없음"
         }
       }
     }
