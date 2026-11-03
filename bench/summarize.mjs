@@ -1,5 +1,6 @@
-// bench/results/*.json을 읽어 {renderer, region, first|revisit}별 평균 표를 출력
-// 실행: node bench/summarize.mjs [결과 폴더]   (라이브러리 없음, Node 내장 모듈만)
+// 결과 폴더의 *.json을 읽어 {renderer, region, first|revisit}별 평균 표를 출력
+// 실행: node bench/summarize.mjs bench/results/fast4g   (라이브러리 없음, Node 내장 모듈만)
+// 네트워크 조건(DevTools throttling)마다 폴더를 나눔 → 결과 JSON에 조건 칸이 없어서 폴더 이름을 조건으로 표시
 //
 // 평균 내기 전에 검사하는 것
 //   - 같은 묶음의 결과가 같은 path로 잰 것인지 (경로가 다르면 평균이 의미 없음 → 멈춤)
@@ -7,8 +8,8 @@
 //   - 3회가 아니면 표에 "n회"로 표시 (1회 값을 평균처럼 보이지 않게)
 //   - valid: false인 결과(재생 중 화면 숨김, 1초 넘는 프레임)는 평균에서 빼고 경고
 
-import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dir = resolve(process.argv[2] ?? join(fileURLToPath(import.meta.url), "../results"));
@@ -20,9 +21,15 @@ try {
   process.exit(1);
 }
 if (!files.length) {
+  // bench/results처럼 조건별 하위 폴더만 있는 곳을 줬으면 실행할 명령을 알려줌
+  const subdirs = readdirSync(dir).filter((f) => statSync(join(dir, f)).isDirectory());
   console.error(`${dir}에 결과 JSON이 없음`);
+  for (const d of subdirs) console.error(`  → node bench/summarize.mjs ${relative(process.cwd(), join(dir, d))}`);
   process.exit(1);
 }
+
+// 조건 = 폴더 이름 (예: localhost, fast4g)
+const condition = basename(dir);
 
 const groups = new Map();
 for (const f of files) {
@@ -63,7 +70,7 @@ for (const [key, runs] of groups) {
     process.exit(1);
   }
   const label = runs.length === 3 ? "3회 평균" : `${runs.length}회${runs.length > 1 ? " 평균" : ""} (3회 아님)`;
-  console.log(`\n■ ${key} · ${label} · ${runs.map((r) => r.file).join(", ")}`);
+  console.log(`\n■ ${key} · 조건 ${condition}(폴더 이름) · ${label} · ${runs.map((r) => r.file).join(", ")}`);
   // 미완료 회차가 있으면 평균을 내지 않음(끝난 회차만 평균 내면 빨라 보임) → 최소 이만큼 걸렸다는 하한만
   const pending = runs.filter((r) => r.initialTilesPending);
   const initial = pending.length
