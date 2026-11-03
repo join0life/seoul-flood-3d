@@ -8,21 +8,26 @@
 //   - 3회가 아니면 표에 "n회"로 표시 (1회 값을 평균처럼 보이지 않게)
 //   - valid: false인 결과(재생 중 화면 숨김, 1초 넘는 프레임)는 평균에서 빼고 경고
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dir = resolve(process.argv[2] ?? join(fileURLToPath(import.meta.url), "../results"));
-let files;
+// 폴더는 한 번만 읽음. withFileTypes → 파일·폴더 구분이 같이 와서 statSync를 따로 안 부름
+let entries;
 try {
-  files = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+  entries = readdirSync(dir, { withFileTypes: true });
 } catch {
   console.error(`${dir} 폴더가 없음`);
   process.exit(1);
 }
+const files = entries
+  .filter((e) => e.isFile() && e.name.endsWith(".json"))
+  .map((e) => e.name)
+  .sort();
 if (!files.length) {
   // bench/results처럼 조건별 하위 폴더만 있는 곳을 줬으면 실행할 명령을 알려줌
-  const subdirs = readdirSync(dir).filter((f) => statSync(join(dir, f)).isDirectory());
+  const subdirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
   console.error(`${dir}에 결과 JSON이 없음`);
   for (const d of subdirs) console.error(`  → node bench/summarize.mjs ${relative(process.cwd(), join(dir, d))}`);
   process.exit(1);
@@ -70,7 +75,7 @@ for (const [key, runs] of groups) {
     process.exit(1);
   }
   const label = runs.length === 3 ? "3회 평균" : `${runs.length}회${runs.length > 1 ? " 평균" : ""} (3회 아님)`;
-  console.log(`\n■ ${key} · 조건 ${condition}(폴더 이름) · ${label} · ${runs.map((r) => r.file).join(", ")}`);
+  console.log(`\n■ ${key} · 조건 ${condition} (폴더 이름) · ${label} · ${runs.map((r) => r.file).join(", ")}`);
   // 미완료 회차가 있으면 평균을 내지 않음(끝난 회차만 평균 내면 빨라 보임) → 최소 이만큼 걸렸다는 하한만
   const pending = runs.filter((r) => r.initialTilesPending);
   const initial = pending.length
