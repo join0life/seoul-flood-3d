@@ -1,13 +1,13 @@
 import json
 import time
-from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
-WORK = ROOT / "data/work"
+from region import BUILDING_FLOOD, FGB, REGION, ROOT
+from s04_overlay import FLOOD_DATES
+
 SCHEMA = json.loads((ROOT / "schema/building.json").read_text(encoding="utf-8"))
 
 FLOOR_HEIGHT = 3.25                                   # 층당 높이 중앙값(m)
@@ -30,7 +30,8 @@ def check_schema(df):
 
 def main():
     t0 = time.perf_counter()
-    b = gpd.read_file(WORK / "building_flood.gpkg", engine="pyogrio")
+    print(f"REGION={REGION}")
+    b = gpd.read_file(BUILDING_FLOOD, engine="pyogrio")
 
     out = gpd.GeoDataFrame(geometry=b.geometry, crs=b.crs)
     out["buildingId"] = b["A1"].astype(str)
@@ -54,14 +55,15 @@ def main():
     check_schema(out)
 
     # 확인용 숫자 (저장은 안 함, 후보는 셰이더가 계산)
-    cand = (out["floodYears"] > 0) & (out["ugrndFlr"] >= 1) & out["isResidential"]
     print(f"  높이 출처: {out['heightSource'].value_counts().sort_index().to_dict()}  (0 원본 / 1 층수 / 2 기본)")
-    print(f"  후보(2022): {cand.sum():,}동")
+    for year in FLOOD_DATES:
+        flooded = (out["floodYears"] & (1 << (year - 2010))) > 0
+        cand = flooded & (out["ugrndFlr"] >= 1) & out["isResidential"]
+        print(f"  후보({year}): {cand.sum():,}동")
 
     out = out.to_crs(4326)                            # 위경도(WGS84)로 바꿔서 저장
-    path = WORK / "gwanak.fgb"
-    out.to_file(path, driver="FlatGeobuf", engine="pyogrio")
-    print(f"저장 완료 · {path.stat().st_size / 1e6:.1f}MB · {time.perf_counter() - t0:.1f}s")
+    out.to_file(FGB, driver="FlatGeobuf", engine="pyogrio")
+    print(f"저장 완료 · {FGB.name} {FGB.stat().st_size / 1e6:.1f}MB · {time.perf_counter() - t0:.1f}s")
 
 
 if __name__ == "__main__":

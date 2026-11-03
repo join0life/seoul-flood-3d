@@ -1,18 +1,18 @@
 import time
-from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
 from shapely.ops import unary_union
 
-ROOT = Path(__file__).resolve().parents[2]   # seoul-flood-3d/
-RAW = ROOT / "data/raw"
-WORK = ROOT / "data/work"
+from region import BUILDING_5186, BUILDING_FILE, FLOOD_5186, RAW, REGION, WORK
+
 TARGET_CRS = 5186                            # 건물 지도 기준 좌표계
 
-BUILDING_FILE = RAW / "gwanak_11620.shp"
 FLOOD_FILES = {2022: RAW / "flood_2022.shp", 2025: RAW / "flood_2025.shp"}
 BUILDING_COLS = ["A1", "A8", "A13", "A16", "A23", "A26", "A27"]
+# 서울 범위(EPSG:5186, 경계 + 여유 약 5km). 서울 원본에 시군구코드는 서울인데 좌표가 250km 남쪽인 도형 2개가 있음
+# → 그대로 두면 쿼드트리 루트가 남한 절반을 덮음
+SEOUL_BBOX = (175_000, 530_000, 225_000, 575_000)   # 서, 남, 동, 북 (m)
 
 
 def read(path):
@@ -45,11 +45,16 @@ def main():
     t0 = time.perf_counter()
     WORK.mkdir(parents=True, exist_ok=True)
 
-    print("[건물]")
+    print(f"[건물] REGION={REGION}")
     b = read(BUILDING_FILE)[BUILDING_COLS + ["geometry"]]
     if b.crs.to_epsg() != TARGET_CRS:
         b = b.to_crs(TARGET_CRS)
     b = fix_geometry(b, "건물")
+    c = b.geometry.centroid
+    w, s, e, n = SEOUL_BBOX
+    inside = c.x.between(w, e) & c.y.between(s, n)
+    print(f"  건물: 서울 범위 밖이라 뺀 도형 {(~inside).sum():,}개, 남은 {inside.sum():,}개")
+    b = b[inside]
 
     print("[침수]")
     floods = []
@@ -60,8 +65,8 @@ def main():
         floods.append(fix_geometry(f, f"침수 {year}"))
     flood = gpd.GeoDataFrame(pd.concat(floods, ignore_index=True), crs=TARGET_CRS)
 
-    b.to_file(WORK / "building_5186.gpkg", engine="pyogrio")
-    flood.to_file(WORK / "flood_5186.gpkg", engine="pyogrio")
+    b.to_file(BUILDING_5186, engine="pyogrio")
+    flood.to_file(FLOOD_5186, engine="pyogrio")
     print(f"저장 완료 · {time.perf_counter() - t0:.1f}s")
 
 
