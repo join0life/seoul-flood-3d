@@ -1,0 +1,10 @@
+{
+  "gwanak": {
+    "building": "data/raw/gwanak_11620.shp",
+    "description": "관악구만 잘라낸 것 (디버깅용)"
+  },
+  "seoul": {
+    "building": "data/raw/AL_D010_11_20261009.shp",
+    "description": "GIS건물통합정보 서울 전체 (기준일 2026-10-09)"
+  }
+}

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from region import BUILDING_FLOOD, FGB, REGION, ROOT
-from s04_overlay import FLOOD_DATES
+from s04_overlay import FIRST_YEAR, FLOOD_DATES
 
 SCHEMA = json.loads((ROOT / "schema/building.json").read_text(encoding="utf-8"))
 
@@ -57,7 +57,7 @@ def main():
     # 확인용 숫자 (저장은 안 함, 후보는 셰이더가 계산)
     print(f"  높이 출처: {out['heightSource'].value_counts().sort_index().to_dict()}  (0 원본 / 1 층수 / 2 기본)")
     for year in FLOOD_DATES:
-        flooded = (out["floodYears"] & (1 << (year - 2010))) > 0
+        flooded = (out["floodYears"] & (1 << (year - FIRST_YEAR))) > 0
         cand = flooded & (out["ugrndFlr"] >= 1) & out["isResidential"]
         print(f"  후보({year}): {cand.sum():,}동")
 

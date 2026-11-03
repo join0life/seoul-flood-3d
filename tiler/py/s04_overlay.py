@@ -11,10 +11,16 @@ FLOOD_DATES = {
     2022: "2022-08-08",
     2025: "2025-08-13",   # 원본 '피해일시' 칸의 82%가 이 날 (README 5.1 침수 날짜)
 }
+FIRST_YEAR = 2010   # floodYears 자리 번호 = 연도 - 2010. UINT16(16자리)이라 2010~2025만 담김
+LAST_YEAR = FIRST_YEAR + 15
 
 
 def main():
     t0 = time.perf_counter()
+    bad = [y for y in FLOOD_DATES if not FIRST_YEAR <= y <= LAST_YEAR]
+    if bad:
+        raise ValueError(f"침수 연도 {bad}: floodYears가 UINT16이라 {FIRST_YEAR}~{LAST_YEAR}만 지원")
+
     print(f"REGION={REGION}")
     b = gpd.read_file(BUILDING_5186, engine="pyogrio").reset_index(drop=True)
     flood = gpd.read_file(FLOOD_5186, engine="pyogrio")
@@ -34,7 +40,7 @@ def main():
         built_before = appr.isna() | (appr < cutoff)    # 날짜 모르면 남김(전에 정한 규칙)
         ok = touched & built_before
 
-        bit = 1 << (year - 2010)                        # 2022 → 4096
+        bit = 1 << (year - FIRST_YEAR)                  # 2022 → 4096
         b.loc[ok, "floodYears"] = b.loc[ok, "floodYears"] | bit
         print(f"  {year}: 닿은 건물 {touched.sum():,} → 침수 전 건물 {ok.sum():,} "
               f"(침수 후 지어져 제외 {(touched & ~built_before).sum():,})")
