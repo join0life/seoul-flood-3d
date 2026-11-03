@@ -235,8 +235,8 @@ python -m http.server 8080      # 루트에서
 
 1. **첫 방문**: DevTools Network의 "Disable cache"를 켜고 새로고침 → 회차(1~3) 고르기 → 재생 → "JSON 다운로드"
 2. **재방문**: 새로고침 없이 같은 화면에서 재생 한 번 더 → "JSON 다운로드" (렌더러 메모리에 타일이 남은 상태)
-3. 1~2를 3번(회차 1·2·3) → 결과 파일 6개 `{renderer}_{region}_{first|revisit}_{n}.json`을 `bench/results/`로 옮기기
-4. `node bench/summarize.mjs` → 묶음별 3회 평균 표. 경로가 다른 결과가 섞이면 멈추고, 구간 끝 카메라가 회차끼리 얼마나 다른지(m)도 같이 출력합니다.
+3. 1~2를 3번(회차 1·2·3) → 결과 파일 6개 `{renderer}_{region}_{first|revisit}_{n}.json`을 네트워크 조건(DevTools throttling) 폴더 `bench/results/<조건>/`로 옮기기 (예: 제한 없음은 `bench/results/localhost/`, Fast 4G는 `bench/results/fast4g/`). 결과 JSON에 조건 칸이 없어서 폴더 이름이 곧 조건 기록이고, `bench/results/` 바로 아래에 두면 summarize가 읽지 않습니다.
+4. `node bench/summarize.mjs bench/results/<조건>` → 그 조건의 묶음별 3회 평균 표. 제목에 폴더 이름을 조건으로 표시합니다. 경로가 다른 결과가 섞이면 멈추고, 구간 끝 카메라가 회차끼리 얼마나 다른지(m)도 같이 출력합니다.
 
 재생 중 탭 전환·창 가림으로 브라우저가 렌더를 멈추면 그 회차는 렌더러 성능이 아닙니다. 재생 중 화면이 숨거나(`visibilitychange`) 1초 넘는 프레임 간격이 있으면 결과 JSON에 `valid: false`와 사유를 남기고, summarize는 그 파일을 평균에서 빼고 경고합니다. 그 회차는 다시 잽니다.
 
