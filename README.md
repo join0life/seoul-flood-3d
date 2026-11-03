@@ -285,7 +285,7 @@ FPS, draw call, 로드된 타일 수, 타일 메모리를 화면에 표시합니
 
 - Three.js
   - 자체 스트리밍 렌더러: 화면 오차 기준 타일 선택, 메모리 예산 캐시(LRU), 셰이더 필터, GPU picking
-  - 위경도 ↔ ECEF·ENU 변환만 3d-tiles-renderer의 `WGS84_ELLIPSOID`(Cesium과 같은 공식)를 씁니다. 타일 선택·캐시에는 쓰지 않습니다
+  - 위경도 ↔ ECEF·ENU 변환은 타일러와 같은 공용 모듈(`shared/geo.ts`)을 씁니다. 타일을 만든 공식으로 그립니다
 - CesiumJS
   - 비교 기준. 같은 타일셋을 `Cesium3DTileset`으로 띄워 같은 조건에서 측정
 - Vite + React

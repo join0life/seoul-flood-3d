@@ -6,6 +6,6 @@ export default defineConfig({
   publicDir: "../data/tiles",
   // 빌드할 때 서울 타일 825MB를 결과 폴더에 복사하지 않게
   build: { copyPublicDir: false },
-  // bench/(경로·버튼·어댑터)는 렌더러 폴더 밖이라 그 폴더만 읽기 허용
-  server: { fs: { allow: [".", "../bench"] } },
+  // bench/(경로·버튼·어댑터)와 shared/(타일러와 같이 쓰는 좌표 공식)는 렌더러 폴더 밖이라 그 폴더만 읽기 허용
+  server: { fs: { allow: [".", "../bench", "../shared"] } },
 });

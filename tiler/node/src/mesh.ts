@@ -1,6 +1,6 @@
 import earcut, { deviation } from "earcut";
 import type { Polygon, Position } from "geojson";
-import { enuAt, toEcef, toLocal, type Enu, type Vec3 } from "./geo.js";
+import { enuAt, toEcef, toLocal, type Enu, type Vec3 } from "../../../shared/geo.js";
 import type { TileNode } from "./quadtree.js";
 
 /** 타일 하나 = 건물 전부를 합친 메시 하나 (draw call 1번) */

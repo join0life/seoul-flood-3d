@@ -38,7 +38,9 @@ export class CityRenderer {
 
   constructor(container: HTMLElement) {
     this.renderer = new WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    // 측정 해상도는 pixelRatio 1로 고정(context 결정). Cesium 기본값(useBrowserRecommendedResolution)도
+    // CSS 픽셀 크기로 그려서 같은 조건. devicePixelRatio(M1은 2)를 쓰면 그리는 픽셀이 4배
+    this.renderer.setPixelRatio(1);
     container.append(this.renderer.domElement);
 
     // Cesium 측정 화면과 같은 검은 배경. 빛은 건물 면이 구분될 정도만(색 비교가 아니라 위치 비교용)
