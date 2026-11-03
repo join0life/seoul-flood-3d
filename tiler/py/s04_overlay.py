@@ -1,23 +1,17 @@
 import time
-from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
-WORK = ROOT / "data/work"
-
-# 침수 날짜. 이 날짜 이후 사용승인된 건물은 그 해 침수에서 제외
-FLOOD_DATES = {
-    2022: "2022-08-08",
-    2025: None,   # 【 】 날짜 확인 전. 관악은 2025 침수에 닿은 건물이 0동이라 영향 없음. 닿은 건물이 있는데 비어 있으면 아래에서 멈춤
-}
+from flood_dates import FIRST_YEAR, FLOOD_DATES   # import할 때 연도 범위(2010~2025) 검사
+from region import BUILDING_5186, BUILDING_FLOOD, FLOOD_5186, REGION
 
 
 def main():
     t0 = time.perf_counter()
-    b = gpd.read_file(WORK / "building_5186.gpkg", engine="pyogrio").reset_index(drop=True)
-    flood = gpd.read_file(WORK / "flood_5186.gpkg", engine="pyogrio")
+    print(f"REGION={REGION}")
+    b = gpd.read_file(BUILDING_5186, engine="pyogrio").reset_index(drop=True)
+    flood = gpd.read_file(FLOOD_5186, engine="pyogrio")
 
     appr = pd.to_datetime(b["A13"], errors="coerce")   # 사용승인일. 이상한 값은 빈칸(NaT)
     b["floodYears"] = 0
@@ -34,7 +28,7 @@ def main():
         built_before = appr.isna() | (appr < cutoff)    # 날짜 모르면 남김(전에 정한 규칙)
         ok = touched & built_before
 
-        bit = 1 << (year - 2010)                        # 2022 → 4096
+        bit = 1 << (year - FIRST_YEAR)                  # 2022 → 4096
         b.loc[ok, "floodYears"] = b.loc[ok, "floodYears"] | bit
         print(f"  {year}: 닿은 건물 {touched.sum():,} → 침수 전 건물 {ok.sum():,} "
               f"(침수 후 지어져 제외 {(touched & ~built_before).sum():,})")
@@ -42,7 +36,7 @@ def main():
     b["floodYears"] = b["floodYears"].astype("uint16")
     print(f"침수 이력 있는 건물 {(b['floodYears'] > 0).sum():,}개")
 
-    b.to_file(WORK / "building_flood.gpkg", engine="pyogrio")
+    b.to_file(BUILDING_FLOOD, engine="pyogrio")
     print(f"저장 완료 · {time.perf_counter() - t0:.1f}s")
 
 

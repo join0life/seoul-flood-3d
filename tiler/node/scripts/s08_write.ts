@@ -1,20 +1,19 @@
 import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, resolve } from "node:path";
 import type { Enu } from "../src/geo.js";
 import { writeTileGlb } from "../src/glb.js";
 import { loadBuildings } from "../src/load.js";
 import { buildTileMesh } from "../src/mesh.js";
 import { buildQuadtree, type TileNode } from "../src/quadtree.js";
+import { FGB, REGION, TILES_DIR as out } from "../src/region.js";
 import { buildTileset } from "../src/tileset.js";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const out = resolve(root, "data/tiles/gwanak");
+console.log(`REGION=${REGION}`);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(resolve(out, "tiles"), { recursive: true });
 
 const t0 = performance.now();
-const buildings = await loadBuildings(resolve(root, "data/work/gwanak.fgb"));
+const buildings = await loadBuildings(FGB);
 const tree = buildQuadtree(buildings);
 const tiles: TileNode[] = [];
 (function walk(n: TileNode) {
@@ -35,19 +34,20 @@ for (const tile of tiles) {
   total += glb.byteLength;
   maxSize = Math.max(maxSize, glb.byteLength);
 }
-const rootError = Math.max(...buildings.map((b) => b.size));
+// Math.max(...배열)은 서울 전체(69만 개)에서 인자가 너무 많아 스택이 넘침 → 반복문으로
+const rootError = buildings.reduce((m, b) => Math.max(m, b.size), -Infinity);
 writeFileSync(
   resolve(out, "tileset.json"),
   JSON.stringify(buildTileset(tree, enuOf, rootError), null, 2),
 );
 const t1 = performance.now();
 
-const src = statSync(resolve(root, "data/work/gwanak.fgb")).size;
+const src = statSync(FGB).size;
 console.log(
   `GLB ${tiles.length}개 · 총 ${(total / 1e6).toFixed(1)}MB · 평균 ${(total / tiles.length / 1e3).toFixed(0)}KB · 최대 ${(maxSize / 1e3).toFixed(0)}KB`,
 );
 console.log(`인덱스 Uint16 ${uint16}개 / Uint32 ${tiles.length - uint16}개`);
-console.log(`(참고) 입력 gwanak.fgb ${(src / 1e6).toFixed(1)}MB`);
+console.log(`(참고) 입력 ${basename(FGB)} ${(src / 1e6).toFixed(1)}MB`);
 console.log(
   `tileset.json 저장 · 루트 geometricError ${rootError.toFixed(1)}m · ${((t1 - t0) / 1000).toFixed(1)}s`,
 );

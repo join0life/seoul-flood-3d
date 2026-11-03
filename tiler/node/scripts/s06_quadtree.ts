@@ -1,12 +1,11 @@
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { loadBuildings } from "../src/load.js";
 import { buildQuadtree, MAX_PER_TILE, type TileNode } from "../src/quadtree.js";
+import { FGB, REGION } from "../src/region.js";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+console.log(`REGION=${REGION}`);
 const t0 = performance.now();
 
-const buildings = await loadBuildings(resolve(root, "data/work/gwanak.fgb"));
+const buildings = await loadBuildings(FGB);
 const t1 = performance.now();
 const tree = buildQuadtree(buildings);
 const t2 = performance.now();
