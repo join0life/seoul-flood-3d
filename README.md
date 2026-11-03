@@ -304,8 +304,8 @@ FPS, draw call, 로드된 타일 수, 타일 메모리를 화면에 표시합니
   - UI 스타일링과 컴포넌트
 - 호스팅
   - 타일: Cloudflare R2 (잠정, 타일 총용량 확인 후 확정) / 앱: 【 】
-- pnpm
-  - 패키지 매니저
+- npm
+  - 패키지 매니저. 타일러(`tiler/node`)와 렌더러(`renderer`) 모두 `package-lock.json`으로 버전 고정
 
 ## 10. 한계
 
