@@ -1,0 +1,127 @@
+// 측정 화면의 버튼·순서. 렌더러를 모름 → 어댑터만 받아서 1-3 Three.js 화면에도 그대로 붙임
+//
+// 순서: 재생 → (첫 재생이면) 타일셋 불러오기 시작 + 경로 재생 → 결과 JSON 다운로드 + console.table
+// 새로고침 후 첫 재생 = first, 같은 화면에서 다시 재생 = revisit (렌더러 메모리에 타일이 남아 있는 상태)
+
+import { play, validatePath } from "./player.js";
+import { createRecorder } from "./recorder.js";
+
+const STYLE =
+  "position:absolute;bottom:30px;left:10px;background:#fff;padding:8px 10px;" +
+  "font:12px/1.6 monospace;border-radius:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:520px";
+
+function box() {
+  const el = document.createElement("div");
+  el.style.cssText = STYLE;
+  document.body.append(el);
+  return el;
+}
+
+function button(parent, label, onClick) {
+  const b = document.createElement("button");
+  b.textContent = label;
+  b.onclick = onClick;
+  parent.append(b);
+  return b;
+}
+
+const round = (x, d) => Math.round(x * 10 ** d) / 10 ** d;
+
+/** "현재 카메라 값 복사" 버튼. path.json의 지점 하나를 그대로 붙여 넣을 수 있는 JSON을 클립보드로 */
+export function mountCopyButton(getCamera, parent = box()) {
+  button(parent, "현재 카메라 값 복사", async () => {
+    const c = getCamera();
+    // 위경도 6자리 ≈ 0.1m, 높이 0.1m, 각도 0.01°면 경로 지점으로 충분
+    const point = {
+      lon: round(c.lon, 6),
+      lat: round(c.lat, 6),
+      height: round(c.height, 1),
+      heading: round(((c.heading % 360) + 360) % 360, 2),
+      pitch: round(c.pitch, 2),
+    };
+    const text = JSON.stringify(point);
+    console.log("[bench] 카메라", text);
+    try {
+      await navigator.clipboard.writeText(text); // localhost는 보안 컨텍스트라 허용
+    } catch (e) {
+      console.warn("[bench] 클립보드 실패 → 위 콘솔 값을 복사", e);
+    }
+  });
+  return parent;
+}
+
+export async function mountBenchPanel({ adapter, region, pathUrl }) {
+  const panel = box();
+  mountCopyButton(() => adapter.getCamera(), panel);
+  const status = document.createElement("span");
+
+  const path = await (await fetch(pathUrl, { cache: "no-store" })).json();
+  const errors = validatePath(path);
+  if (errors.length) {
+    status.textContent = `path.json 미완성 (${errors.length}건, 콘솔 참고) → 평소 화면에서 "현재 카메라 값 복사"로 채울 것`;
+    console.warn("[bench] path.json 문제\n" + errors.join("\n"));
+    panel.append(status);
+    return;
+  }
+
+  const nInput = document.createElement("select");
+  for (const n of [1, 2, 3]) nInput.append(new Option(`${n}회차`, n));
+  panel.append(nInput);
+
+  let runs = 0;
+  let last = null;
+  adapter.setCamera(path.start); // 타일은 아직 안 받음. 재생을 누르면 시작
+
+  const playBtn = button(panel, "재생", async () => {
+    playBtn.disabled = saveBtn.disabled = true;
+    const kind = runs === 0 ? "first" : "revisit";
+    const n = Number(nInput.value);
+    const rec = createRecorder(adapter, path, { region, kind, n });
+
+    rec.start();
+    adapter.load()?.then(() => rec.markInitialTilesLoaded(performance.now()));
+    status.textContent = `${kind} 재생 중: ${path.segments[0].name}`;
+    await play(path, adapter, {
+      onFrame: (now, i) => rec.frame(now, i),
+      onSegmentEnd: (i, camera) => {
+        rec.endSegment(i, camera);
+        // 완료 확인용: 두 번 돌려서 같은 구간 끝 값이 나오는지 비교
+        console.log(`[bench] 구간 끝 ${path.segments[i].name}`, JSON.stringify(camera));
+        const next = path.segments[i + 1];
+        if (next) status.textContent = `${kind} 재생 중: ${next.name}`;
+      },
+    });
+
+    runs++;
+    last = rec.finish();
+    console.log(`[bench] ${fileName(last)}  initialTilesLoaded ${last.initialTilesLoadedMs}ms`);
+    console.table(
+      last.segments.map((s) => ({
+        구간: s.name,
+        프레임: s.frames,
+        평균ms: s.avgFrameMs,
+        최대ms: s.maxFrameMs,
+        "느린%": round(s.slowFrameRatio * 100, 1),
+        불러옴: s.tilesLoaded,
+        내림: s.tilesUnloaded,
+        대기요청: s.pendingRequestsAtEnd,
+        메모리MB: round(s.memoryBytesAtEnd / 1e6, 1),
+      })),
+    );
+    status.textContent = `끝: ${fileName(last)} (다음 재생은 revisit)`;
+    playBtn.disabled = saveBtn.disabled = false;
+  });
+
+  const saveBtn = button(panel, "JSON 다운로드", () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(last, null, 2)], { type: "application/json" }));
+    a.download = fileName(last);
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  saveBtn.disabled = true;
+  status.textContent = `${path.segments.map((s) => s.name).join(" → ")} · 재생을 누르면 타일을 받기 시작`;
+  panel.append(status);
+}
+
+const fileName = (r) => `${r.renderer}_${r.region}_${r.kind}_${r.n}.json`;
