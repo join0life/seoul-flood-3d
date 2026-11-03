@@ -43,6 +43,11 @@
       // ?bench=1: 고정 경로 측정 화면(bench/). 없으면 평소 확인 화면 그대로
       const params = new URLSearchParams(location.search);
       const BENCH = params.get("bench") === "1";
+      // 측정 화면은 캔버스를 1680×928로 고정(평소 화면은 창 크기 따라감). Viewer를 만들기 전에 크기를 정함
+      if (BENCH) {
+        const { fixCanvasContainer } = await import("../bench/canvas.js");
+        fixCanvasContainer(document.getElementById("map"));
+      }
 
       // Cesium ion 토큰 없이 쓰기: 기본 배경지도(ion)는 끄고 OpenStreetMap 배경만 깔기
       // 측정 화면은 바탕 지도 없음(네트워크 잡음 제거, 내 렌더러처럼 건물만)

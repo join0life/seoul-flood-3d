@@ -36,7 +36,7 @@ export class CityRenderer {
   private readonly loader = new GLTFLoader();
   private readonly frameListeners = new Set<() => void>();
 
-  constructor(container: HTMLElement) {
+  constructor(private readonly container: HTMLElement) {
     this.renderer = new WebGLRenderer({ antialias: true });
     // 측정 해상도는 pixelRatio 1로 고정(context 결정). Cesium 기본값(useBrowserRecommendedResolution)도
     // CSS 픽셀 크기로 그려서 같은 조건. devicePixelRatio(M1은 2)를 쓰면 그리는 픽셀이 4배
@@ -51,14 +51,15 @@ export class CityRenderer {
     this.scene.add(sun);
 
     this.camera.up.set(0, 0, 1); // 지역 좌표는 z가 위
-    window.addEventListener("resize", () => this.resize());
+    // 창이 아니라 컨테이너 크기를 따라감 → 측정 화면은 컨테이너를 1680×928로 고정, 평소엔 창 전체
+    new ResizeObserver(() => this.resize()).observe(container);
     this.resize();
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
   private resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
     this.renderer.setSize(w, h);
     const aspect = w / h;
     this.camera.aspect = aspect;

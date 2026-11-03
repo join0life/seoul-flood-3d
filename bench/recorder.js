@@ -13,7 +13,7 @@ const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : nu
 // 95번째 백분위(nearest-rank): 정렬해서 95% 지점의 값. 최대값 하나는 우연히 튈 수 있어서 같이 봄
 const p95 = (xs) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.ceil(xs.length * 0.95) - 1] : null);
 
-export function createRecorder(adapter, path, { region, kind, n }) {
+export function createRecorder(adapter, path, { region, kind, n, canvasFixed = null }) {
   const segs = path.segments.map((s) => ({
     name: s.name,
     type: s.type,
@@ -113,6 +113,8 @@ export function createRecorder(adapter, path, { region, kind, n }) {
           userAgent: navigator.userAgent,
           devicePixelRatio: window.devicePixelRatio,
           canvas: info.canvas,
+          // 측정 캔버스 고정 여부. 고정했으면 { fixed: true, width, height } (bench/canvas.js)
+          canvasFixed: canvasFixed ? { fixed: true, ...canvasFixed } : { fixed: false },
           renderer: info, // 버전·타일셋 옵션(기본값 그대로, 값만 기록)
         },
         // 첫 재생에서만 값이 있음. 재방문은 이미 불러온 상태라 null

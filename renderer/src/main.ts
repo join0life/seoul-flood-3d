@@ -1,5 +1,6 @@
 // 화면 연결: 렌더러 만들기 → 카메라를 bench 지점에 → 타일 전부 불러오기 → 숫자 표시
 //
+// ?bench=1 : 측정 캔버스 1680×928 고정 (bench/canvas.js, Cesium 측정 화면과 같은 값)
 // ?region=gwanak(기본) | seoul
 // ?at=overview|zoom|alley|return  : bench/path.json의 그 구간 끝 지점으로 카메라를 둠(Cesium과 같은 자리 비교용)
 
@@ -8,12 +9,24 @@ import type { CameraPoint } from "./geo";
 import path from "../../bench/path.json";
 import { createThreeAdapter } from "../../bench/adapters/three.js";
 import { mountCopyButton } from "../../bench/panel.js";
+import { BENCH_CANVAS, canvasProblem, fixCanvasContainer } from "../../bench/canvas.js";
 
 const params = new URLSearchParams(location.search);
 const region = (params.get("region") ?? "gwanak").replace(/[^a-z0-9_-]/gi, "");
 const info = document.getElementById("info")!;
 
-const renderer = new CityRenderer(document.body);
+const BENCH = params.get("bench") === "1";
+
+// 렌더러가 그릴 칸. 평소엔 창 전체, 측정 화면은 1680×928 고정
+const container = document.createElement("div");
+container.style.cssText = "position:absolute;inset:0";
+document.body.prepend(container);
+if (BENCH) {
+  container.style.inset = "0 auto auto 0";
+  fixCanvasContainer(container);
+}
+
+const renderer = new CityRenderer(container);
 const adapter = createThreeAdapter(renderer);
 Object.assign(window, { renderer, bench: adapter }); // 콘솔 확인용
 
@@ -38,8 +51,10 @@ const loadMs = performance.now() - t0;
 const off = renderer.onFrame(() => {
   off();
   const { render, memory } = renderer.renderer.info;
+  const canvas = renderer.renderer.domElement;
   const stats = {
     region,
+    canvas: `${canvas.width}×${canvas.height}${BENCH ? ` (고정 ${BENCH_CANVAS.width}×${BENCH_CANVAS.height})` : ""}`,
     at: at ?? "start",
     tiles: result.tiles,
     meshes: result.meshes,
@@ -55,4 +70,7 @@ const off = renderer.onFrame(() => {
   info.textContent = Object.entries(stats)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
+  // 측정 화면인데 창이 작으면 경고(재생 막기는 1-4에서 bench 패널을 붙일 때 같은 canvasProblem으로)
+  const problem = BENCH && canvasProblem({ width: canvas.width, height: canvas.height });
+  if (problem) info.textContent = `⚠ 측정 불가: ${problem}\n\n` + info.textContent;
 });
