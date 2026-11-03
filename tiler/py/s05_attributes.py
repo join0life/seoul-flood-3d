@@ -5,8 +5,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
+from flood_dates import FIRST_YEAR, FLOOD_DATES
 from region import BUILDING_FLOOD, FGB, REGION, ROOT
-from s04_overlay import FIRST_YEAR, FLOOD_DATES
 
 SCHEMA = json.loads((ROOT / "schema/building.json").read_text(encoding="utf-8"))
 

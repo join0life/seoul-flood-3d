@@ -16,7 +16,7 @@ SEOUL_BBOX = (175_000, 530_000, 225_000, 575_000)   # 서, 남, 동, 북 (m)
 
 
 def read(path, columns=None):
-    """columns=None이면 모든 칸, []이면 도형만 읽음"""
+    """columns=None이면 모든 칸, ["A1", …]이면 그 칸 + 도형, []이면 도형만 읽음"""
     gdf = gpd.read_file(path, engine="pyogrio", encoding="cp949", columns=columns)
     print(f"  {path.name}: {len(gdf):,}개, 좌표계 {gdf.crs.to_epsg()}")
     return gdf
@@ -47,10 +47,12 @@ def main():
     WORK.mkdir(parents=True, exist_ok=True)
 
     print(f"[건물] REGION={REGION}")
-    b = read(BUILDING_FILE)[BUILDING_COLS + ["geometry"]]
+    b = read(BUILDING_FILE, columns=BUILDING_COLS)[BUILDING_COLS + ["geometry"]]   # 쓰는 칸만 읽음(칸 순서도 고정)
     if b.crs.to_epsg() != TARGET_CRS:
         b = b.to_crs(TARGET_CRS)
     b = fix_geometry(b, "건물")
+    # 중심점(centroid) 기준. 멀리 떨어진 조각으로 된 MultiPolygon은 중심점이 도형 밖에 찍혀
+    # 판정이 어긋날 수 있음. 지금 목적(250km 밖 오류 도형 빼기)에는 충분
     c = b.geometry.centroid
     w, s, e, n = SEOUL_BBOX
     inside = c.x.between(w, e) & c.y.between(s, n)
