@@ -1,13 +1,10 @@
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { loadBuildings } from "../src/load.js";
 import { buildQuadtree, type TileNode } from "../src/quadtree.js";
 import { buildTileMesh } from "../src/mesh.js";
+import { FGB, REGION } from "../src/region.js";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const tree = buildQuadtree(
-  await loadBuildings(resolve(root, "data/work/gwanak.fgb")),
-);
+console.log(`REGION=${REGION}`);
+const tree = buildQuadtree(await loadBuildings(FGB));
 const tiles: TileNode[] = [];
 (function walk(n: TileNode) {
   tiles.push(n);

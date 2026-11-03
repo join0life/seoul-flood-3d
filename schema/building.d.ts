@@ -8,7 +8,7 @@ export type HeightSource = 0 | 1 | 2;
 export interface Building {
   /** 원본 건물 번호(A1 GIS건물통합식별번호). 원본 데이터와 다시 맞춰볼 때 씀 */
   buildingId: string;
-  /** 침수 이력. 자리 번호 = 연도 - 2010. 예: 2022년만 잠김 = 4096 */
+  /** 침수 이력. 자리 번호 = 연도 - 2010. UINT16(16자리)이라 2010~2025만 지원. 예: 2022년만 잠김 = 4096 */
   floodYears: number;
   /** 지상층수(A26). 상세 패널 */
   grndFlr: number;

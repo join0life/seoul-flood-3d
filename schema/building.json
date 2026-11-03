@@ -12,7 +12,7 @@
         "floodYears": {
           "type": "SCALAR",
           "componentType": "UINT16",
-          "description": "침수 이력. 자리 번호 = 연도 - 2010. 예: 2022년만 잠김 = 4096"
+          "description": "침수 이력. 자리 번호 = 연도 - 2010. UINT16(16자리)이라 2010~2025만 지원. 예: 2022년만 잠김 = 4096"
         },
         "grndFlr": {
           "type": "SCALAR",
