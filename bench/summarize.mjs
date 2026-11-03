@@ -5,6 +5,7 @@
 //   - 같은 묶음의 결과가 같은 path로 잰 것인지 (경로가 다르면 평균이 의미 없음 → 멈춤)
 //   - 구간 끝 카메라가 회차끼리 같은지 (최대 차이를 m로 출력)
 //   - 3회가 아니면 표에 "n회"로 표시 (1회 값을 평균처럼 보이지 않게)
+//   - valid: false인 결과(재생 중 화면 숨김, 1초 넘는 프레임)는 평균에서 빼고 경고
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -20,9 +21,18 @@ if (!files.length) {
 const groups = new Map();
 for (const f of files) {
   const r = JSON.parse(readFileSync(join(dir, f), "utf8"));
+  if (r.valid === false) {
+    console.warn(`⚠ ${f}: invalid라서 평균에서 뺌 → 다시 잴 것\n    ${r.invalidReasons.join("\n    ")}`);
+    continue;
+  }
   const key = `${r.renderer}_${r.region}_${r.kind}`;
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key).push({ file: f, ...r });
+}
+
+if (!groups.size) {
+  console.error("평균 낼 수 있는 결과가 없음 (모두 invalid)");
+  process.exit(1);
 }
 
 const mean = (xs) => {

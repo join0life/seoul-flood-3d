@@ -4,6 +4,8 @@
 // (어댑터가 구간을 몰라도 되게)
 
 export const SLOW_FRAME_MS = 33.3; // 30fps 아래로 떨어진 프레임
+// 이보다 긴 프레임 간격은 렌더러가 느린 게 아니라 브라우저가 렌더를 멈춘 것(창 가림·최소화 등)으로 봄
+export const STALL_FRAME_MS = 1000;
 
 const round = (x, d = 1) => (x == null ? null : Math.round(x * 10 ** d) / 10 ** d);
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -24,11 +26,21 @@ export function createRecorder(adapter, path, { region, kind, n }) {
   let prevStats = null;
   let initialTilesLoadedMs = null;
 
+  // invalid 사유. 하나라도 있으면 그 회차는 summarize 평균에서 빠짐 (파일은 남겨서 원인 확인용)
+  const invalidReasons = [];
+  let curSeg = 0;
+  const elapsed = () => ((performance.now() - t0) / 1000).toFixed(1);
+  // 탭 전환·창 최소화로 화면이 숨으면 브라우저가 rAF를 멈춤 → 그동안의 숫자는 렌더러 성능이 아님
+  const onVisibility = () => {
+    if (document.hidden) invalidReasons.push(`재생 중 화면 숨김 (${segs[curSeg].name}, ${elapsed()}s)`);
+  };
+
   return {
     start() {
       t0 = performance.now();
       lastFrame = null;
       prevStats = adapter.getStats();
+      document.addEventListener("visibilitychange", onVisibility);
     },
 
     /**
@@ -38,7 +50,14 @@ export function createRecorder(adapter, path, { region, kind, n }) {
      *   → 프레임 간격(사용자가 보는 끊김)과 같이 봐야 함
      */
     frame(now, segIndex, workMs) {
-      if (lastFrame !== null) segs[segIndex].frameTimes.push(now - lastFrame);
+      curSeg = segIndex;
+      if (lastFrame !== null) {
+        const gap = now - lastFrame;
+        segs[segIndex].frameTimes.push(gap);
+        // 창이 다른 창에 가려지면 visibilitychange 없이 렌더만 멈출 때가 있어서 간격으로도 검사
+        if (gap > STALL_FRAME_MS)
+          invalidReasons.push(`프레임 간격 ${round(gap)}ms > ${STALL_FRAME_MS}ms (${segs[segIndex].name}, ${elapsed()}s)`);
+      }
       lastFrame = now;
       segs[segIndex].workTimes.push(workMs);
     },
@@ -60,9 +79,12 @@ export function createRecorder(adapter, path, { region, kind, n }) {
     },
 
     finish() {
+      document.removeEventListener("visibilitychange", onVisibility);
       const canvas = adapter.describe().canvas;
       return {
         version: 1,
+        valid: invalidReasons.length === 0,
+        invalidReasons,
         renderer: adapter.describe().renderer,
         region,
         kind, // first | revisit

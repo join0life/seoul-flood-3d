@@ -238,6 +238,8 @@ python -m http.server 8080      # 루트에서
 3. 1~2를 3번(회차 1·2·3) → 결과 파일 6개 `{renderer}_{region}_{first|revisit}_{n}.json`을 `bench/results/`로 옮기기
 4. `node bench/summarize.mjs` → 묶음별 3회 평균 표. 경로가 다른 결과가 섞이면 멈추고, 구간 끝 카메라가 회차끼리 얼마나 다른지(m)도 같이 출력합니다.
 
+재생 중 탭 전환·창 가림으로 브라우저가 렌더를 멈추면 그 회차는 렌더러 성능이 아닙니다. 재생 중 화면이 숨거나(`visibilitychange`) 1초 넘는 프레임 간격이 있으면 결과 JSON에 `valid: false`와 사유를 남기고, summarize는 그 파일을 평균에서 빼고 경고합니다. 그 회차는 다시 잽니다.
+
 구간마다 기록하는 값: 프레임 수, 평균·최대 프레임 간격, 느린 프레임 비율(33.3ms 초과), 한 프레임 작업 시간(평균·p95·최대), 불러온·내린 타일 수, 구간 끝 대기 요청 수와 타일 메모리. 전체: 재생 시작 → 첫 화면 타일 로드 완료(initialTilesLoaded)까지 걸린 시간. 캔버스 크기, devicePixelRatio, 브라우저, 렌더러 버전도 같이 남깁니다.
 
 - 프레임 간격은 화면 주사율에 묶입니다(60Hz면 일이 적어도 16.67ms). 그래서 렌더러가 한 프레임에 실제로 쓴 시간을 따로 잽니다. CesiumJS는 `scene.preUpdate` ~ `scene.postRender` 사이입니다.

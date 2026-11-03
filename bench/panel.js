@@ -112,6 +112,10 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
       })),
     );
     status.textContent = `끝: ${fileName(last)} (다음 재생은 revisit)`;
+    if (!last.valid) {
+      status.textContent = `⚠ invalid: ${fileName(last)} · ${last.invalidReasons[0]} → 다시 잴 것`;
+      console.warn("[bench] invalid (summarize 평균에서 빠짐)\n" + last.invalidReasons.join("\n"));
+    }
     playBtn.disabled = saveBtn.disabled = false;
   });
 
