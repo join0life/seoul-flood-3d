@@ -67,7 +67,8 @@ export function pointAt(seg, t) {
 
 /**
  * 경로를 한 번 재생. 끝나면 resolve
- * hooks.onFrame(now, segIndex): 렌더 직후 매 프레임. segIndex = 방금 그린 프레임이 속한 구간
+ * hooks.onFrame(now, segIndex, workMs): 렌더 직후 매 프레임. segIndex = 방금 그린 프레임이 속한 구간,
+ *   workMs = 어댑터가 잰 그 프레임의 작업 시간
  * hooks.onSegmentEnd(segIndex, camera): 구간 끝. camera = 끝 지점을 넣은 뒤 어댑터에서 다시 읽은 값
  */
 export function play(path, adapter, hooks = {}) {
@@ -80,10 +81,10 @@ export function play(path, adapter, hooks = {}) {
 
     // 렌더 직후에 다음 프레임 카메라를 정함 → 화면에 나오는 위치는 약 한 프레임 전 시각 기준.
     // 두 렌더러 모두 같은 방식이라 비교 조건은 같음
-    const off = adapter.onFrame(() => {
+    const off = adapter.onFrame((workMs) => {
       const now = performance.now();
       const t = (now - t0) / 1000;
-      hooks.onFrame?.(now, seg);
+      hooks.onFrame?.(now, seg, workMs);
 
       // 느린 프레임 하나가 구간 여러 개를 건너뛸 수 있어서 while
       while (seg < timeline.length && t >= timeline[seg].t1) {

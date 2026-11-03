@@ -82,7 +82,7 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
     adapter.load()?.then(() => rec.markInitialTilesLoaded(performance.now()));
     status.textContent = `${kind} 재생 중: ${path.segments[0].name}`;
     await play(path, adapter, {
-      onFrame: (now, i) => rec.frame(now, i),
+      onFrame: (now, i, workMs) => rec.frame(now, i, workMs),
       onSegmentEnd: (i, camera) => {
         rec.endSegment(i, camera);
         // 완료 확인용: 두 번 돌려서 같은 구간 끝 값이 나오는지 비교
@@ -102,6 +102,9 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
         평균ms: s.avgFrameMs,
         최대ms: s.maxFrameMs,
         "느린%": round(s.slowFrameRatio * 100, 1),
+        작업평균ms: s.avgWorkMs,
+        작업p95ms: s.p95WorkMs,
+        작업최대ms: s.maxWorkMs,
         불러옴: s.tilesLoaded,
         내림: s.tilesUnloaded,
         대기요청: s.pendingRequestsAtEnd,

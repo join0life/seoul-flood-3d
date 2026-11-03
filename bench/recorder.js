@@ -6,6 +6,10 @@
 export const SLOW_FRAME_MS = 33.3; // 30fps 아래로 떨어진 프레임
 
 const round = (x, d = 1) => (x == null ? null : Math.round(x * 10 ** d) / 10 ** d);
+const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+
+// 95번째 백분위(nearest-rank): 정렬해서 95% 지점의 값. 최대값 하나는 우연히 튈 수 있어서 같이 봄
+const p95 = (xs) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.ceil(xs.length * 0.95) - 1] : null);
 
 export function createRecorder(adapter, path, { region, kind, n }) {
   const segs = path.segments.map((s) => ({
@@ -13,6 +17,7 @@ export function createRecorder(adapter, path, { region, kind, n }) {
     type: s.type,
     duration: s.duration,
     frameTimes: [],
+    workTimes: [],
   }));
   let t0 = 0;
   let lastFrame = null;
@@ -26,10 +31,16 @@ export function createRecorder(adapter, path, { region, kind, n }) {
       prevStats = adapter.getStats();
     },
 
-    /** 프레임 시간 = 직전 렌더 직후 ~ 이번 렌더 직후. 첫 프레임은 직전이 없어서 안 셈 */
-    frame(now, segIndex) {
+    /**
+     * 프레임 간격 = 직전 렌더 직후 ~ 이번 렌더 직후. 첫 프레임은 직전이 없어서 안 셈
+     * 작업 시간 = 어댑터가 잰 이번 프레임의 렌더러 작업(메인 스레드 CPU). 첫 프레임도 셈
+     *   GPU가 실제로 그리는 시간과 프레임 사이 비동기 작업(타일 응답 처리 등)은 안 들어감
+     *   → 프레임 간격(사용자가 보는 끊김)과 같이 봐야 함
+     */
+    frame(now, segIndex, workMs) {
       if (lastFrame !== null) segs[segIndex].frameTimes.push(now - lastFrame);
       lastFrame = now;
+      segs[segIndex].workTimes.push(workMs);
     },
 
     endSegment(segIndex, camera) {
@@ -66,7 +77,7 @@ export function createRecorder(adapter, path, { region, kind, n }) {
         // 첫 재생에서만 값이 있음. 재방문은 이미 불러온 상태라 null
         initialTilesLoadedMs: round(initialTilesLoadedMs),
         totalMs: round(performance.now() - t0),
-        segments: segs.map(({ frameTimes, ...s }) => {
+        segments: segs.map(({ frameTimes, workTimes, ...s }) => {
           const sum = frameTimes.reduce((a, b) => a + b, 0);
           return {
             ...s,
@@ -77,7 +88,11 @@ export function createRecorder(adapter, path, { region, kind, n }) {
               frameTimes.length ? frameTimes.filter((t) => t > SLOW_FRAME_MS).length / frameTimes.length : null,
               4,
             ),
-            frameTimesMs: frameTimes.map((t) => round(t)), // 나중에 p95 등을 다시 재지 않고 계산하려고 원본도 남김
+            avgWorkMs: round(mean(workTimes), 2),
+            p95WorkMs: round(p95(workTimes), 2),
+            maxWorkMs: round(workTimes.length ? Math.max(...workTimes) : null, 2),
+            frameTimesMs: frameTimes.map((t) => round(t)), // 나중에 다른 지표를 다시 재지 않고 계산하려고 원본도 남김
+            workTimesMs: workTimes.map((t) => round(t, 2)),
           };
         }),
         path, // 결과마다 경로를 같이 남김 → summarize가 같은 경로끼리만 평균 냈는지 검사

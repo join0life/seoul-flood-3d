@@ -37,6 +37,11 @@ export function createCesiumAdapter(viewer, tilesetUrl) {
   scene.moon.show = false;
   scene.fog.enabled = false;
 
+  // 한 프레임 작업 시간 = preUpdate(장면 갱신 시작) ~ postRender(그리기 명령 끝)
+  // 프레임 간격은 화면 주사율(60Hz → 16.67ms)에 묶여서, 일이 적은 프레임끼리는 차이가 안 보임
+  let workStart = 0;
+  scene.preUpdate.addEventListener(() => (workStart = performance.now()));
+
   let tileset = null;
   let tilesLoaded = 0;
   let tilesUnloaded = 0;
@@ -74,9 +79,9 @@ export function createCesiumAdapter(viewer, tilesetUrl) {
 
     getCamera: () => getCesiumCamera(viewer),
 
-    /** 매 프레임 렌더 직후 cb 호출. 끄는 함수를 돌려줌 */
+    /** 매 프레임 렌더 직후 cb(작업 시간 ms) 호출. 끄는 함수를 돌려줌 */
     onFrame(cb) {
-      return scene.postRender.addEventListener(cb);
+      return scene.postRender.addEventListener(() => cb(performance.now() - workStart));
     },
 
     setInputEnabled(on) {
