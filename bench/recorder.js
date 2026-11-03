@@ -25,6 +25,9 @@ export function createRecorder(adapter, path, { region, kind, n }) {
   let lastFrame = null;
   let prevStats = null;
   let initialTilesLoadedMs = null;
+  let expectInitialTiles = false; // 이 회차에서 타일셋을 처음 불러오는지(first)
+  // finish() 뒤에는 상태를 안 바꿈. 이미 돌려준 결과의 valid와 invalidReasons가 서로 어긋나지 않게
+  let finished = false;
 
   // invalid 사유. 하나라도 있으면 그 회차는 summarize 평균에서 빠짐 (파일은 남겨서 원인 확인용)
   const invalidReasons = [];
@@ -76,20 +79,31 @@ export function createRecorder(adapter, path, { region, kind, n }) {
 
     /** 프레임 밖에서 생긴 문제(타일셋 불러오기 실패 등)도 invalid 사유로 */
     invalidate(reason) {
+      if (finished) {
+        // 결과는 이미 나감 → 고칠 수 없으니 알리기만 함
+        console.warn(`[bench] 결과를 만든 뒤 생긴 문제: ${reason} → 이 회차는 다시 잴 것`);
+        return;
+      }
       invalidReasons.push(reason);
     },
 
+    /** 이 회차에서 타일셋 불러오기를 시작함 → 끝날 때까지 첫 화면 로드가 안 오면 "미완료" */
+    expectInitialTilesLoaded() {
+      expectInitialTiles = true;
+    },
+
     markInitialTilesLoaded(now) {
-      initialTilesLoadedMs = now - t0;
+      if (!finished) initialTilesLoadedMs = now - t0;
     },
 
     finish() {
+      finished = true;
       document.removeEventListener("visibilitychange", onVisibility);
       const info = adapter.describe(); // 한 번만 읽음 → renderer·canvas·옵션이 같은 시점 값
       return {
         version: 1,
         valid: invalidReasons.length === 0,
-        invalidReasons,
+        invalidReasons: [...invalidReasons], // 복사본: 돌려준 뒤 원본이 바뀌어도 결과는 그대로
         renderer: info.renderer,
         region,
         kind, // first | revisit
@@ -103,6 +117,9 @@ export function createRecorder(adapter, path, { region, kind, n }) {
         },
         // 첫 재생에서만 값이 있음. 재방문은 이미 불러온 상태라 null
         initialTilesLoadedMs: round(initialTilesLoadedMs),
+        // 재생이 끝날 때까지 첫 화면 로드가 안 끝남. invalid가 아님: 느린 것도 렌더러 성능이라
+        // 빼면 평균이 실제보다 빨라 보임 → summarize가 "> 재생 시간"으로 표시
+        initialTilesPending: expectInitialTiles && initialTilesLoadedMs === null,
         totalMs: round(performance.now() - t0),
         segments: segs.map(({ frameTimes, workTimes, ...s }) => {
           const sum = frameTimes.reduce((a, b) => a + b, 0);

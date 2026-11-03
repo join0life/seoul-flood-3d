@@ -12,7 +12,13 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dir = resolve(process.argv[2] ?? join(fileURLToPath(import.meta.url), "../results"));
-const files = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+let files;
+try {
+  files = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+} catch {
+  console.error(`${dir} 폴더가 없음`);
+  process.exit(1);
+}
 if (!files.length) {
   console.error(`${dir}에 결과 JSON이 없음`);
   process.exit(1);
@@ -58,7 +64,12 @@ for (const [key, runs] of groups) {
   }
   const label = runs.length === 3 ? "3회 평균" : `${runs.length}회${runs.length > 1 ? " 평균" : ""} (3회 아님)`;
   console.log(`\n■ ${key} · ${label} · ${runs.map((r) => r.file).join(", ")}`);
-  console.log(`  initialTilesLoaded: ${fix(mean(runs.map((r) => r.initialTilesLoadedMs)), 0)} ms`);
+  // 미완료 회차가 있으면 평균을 내지 않음(끝난 회차만 평균 내면 빨라 보임) → 최소 이만큼 걸렸다는 하한만
+  const pending = runs.filter((r) => r.initialTilesPending);
+  const initial = pending.length
+    ? `> ${fix(Math.min(...pending.map((r) => r.totalMs)) / 1000)} s (미완료 ${pending.length}/${runs.length})`
+    : `${fix(mean(runs.map((r) => r.initialTilesLoadedMs)), 0)} ms`;
+  console.log(`  initialTilesLoaded: ${initial}`);
 
   const rows = runs[0].segments.map((s, i) => {
     const at = (k) => runs.map((r) => r.segments[i][k]);

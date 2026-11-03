@@ -81,7 +81,9 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
 
     try {
       rec.start();
-      adapter.load()?.then(
+      const loading = adapter.load(); // 재방문이면 null
+      if (loading) rec.expectInitialTilesLoaded();
+      loading?.then(
         () => rec.markInitialTilesLoaded(performance.now()),
         (e) => {
           // 재생은 계속 돌지만 타일 없이 잰 숫자라 invalid
@@ -115,7 +117,8 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
   });
 
   function report(r) {
-    console.log(`[bench] ${fileName(r)}  initialTilesLoaded ${r.initialTilesLoadedMs}ms`);
+    const initial = r.initialTilesPending ? `재생 끝까지 미완료(> ${r.totalMs}ms)` : `${r.initialTilesLoadedMs}ms`;
+    console.log(`[bench] ${fileName(r)}  initialTilesLoaded ${initial}`);
     console.table(
       r.segments.map((s) => ({
         구간: s.name,
