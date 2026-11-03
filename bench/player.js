@@ -70,10 +70,14 @@ export function pointAt(seg, t) {
  * hooks.onFrame(now, segIndex, workMs): 렌더 직후 매 프레임. segIndex = 방금 그린 프레임이 속한 구간,
  *   workMs = 어댑터가 잰 그 프레임의 작업 시간
  * hooks.onSegmentEnd(segIndex, camera): 구간 끝. camera = 끝 지점을 넣은 뒤 어댑터에서 다시 읽은 값
+ * 경로가 잘못됐거나 재생 중 예외가 나면 reject (입력은 다시 켬)
  */
 export function play(path, adapter, hooks = {}) {
+  // 화면(panel) 말고 다른 곳에서 바로 불러도 null·NaN 경로가 조용히 돌지 않게 여기서도 검사
+  const errors = validatePath(path);
+  if (errors.length) return Promise.reject(new Error(`path 문제 ${errors.length}건\n${errors.join("\n")}`));
   const timeline = buildTimeline(path);
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     adapter.setInputEnabled(false); // 재생 중 마우스·스크롤이 카메라를 건드리면 같은 경로가 아님
     adapter.setCamera(path.start);
     const t0 = performance.now();
@@ -81,7 +85,19 @@ export function play(path, adapter, hooks = {}) {
 
     // 렌더 직후에 다음 프레임 카메라를 정함 → 화면에 나오는 위치는 약 한 프레임 전 시각 기준.
     // 두 렌더러 모두 같은 방식이라 비교 조건은 같음
+    // 렌더러 이벤트 안에서 난 예외는 이 Promise로 안 옴 → 직접 잡아서 reject.
+    // 안 잡으면 재생이 끝나지 않아 화면 버튼이 계속 잠김
     const off = adapter.onFrame((workMs) => {
+      try {
+        step(workMs);
+      } catch (e) {
+        off();
+        adapter.setInputEnabled(true);
+        reject(e);
+      }
+    });
+
+    function step(workMs) {
       const now = performance.now();
       const t = (now - t0) / 1000;
       hooks.onFrame?.(now, seg, workMs);
@@ -100,6 +116,6 @@ export function play(path, adapter, hooks = {}) {
         return;
       }
       adapter.setCamera(pointAt(timeline[seg], t));
-    });
+    }
   });
 }

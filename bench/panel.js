@@ -77,26 +77,47 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
     const kind = runs === 0 ? "first" : "revisit";
     const n = Number(nInput.value);
     const rec = createRecorder(adapter, path, { region, kind, n });
+    runs++; // 실패한 회차도 셈: 타일이 일부 남아 있어서 다음 재생은 first가 아님
 
-    rec.start();
-    adapter.load()?.then(() => rec.markInitialTilesLoaded(performance.now()));
-    status.textContent = `${kind} 재생 중: ${path.segments[0].name}`;
-    await play(path, adapter, {
-      onFrame: (now, i, workMs) => rec.frame(now, i, workMs),
-      onSegmentEnd: (i, camera) => {
-        rec.endSegment(i, camera);
-        // 완료 확인용: 두 번 돌려서 같은 구간 끝 값이 나오는지 비교
-        console.log(`[bench] 구간 끝 ${path.segments[i].name}`, JSON.stringify(camera));
-        const next = path.segments[i + 1];
-        if (next) status.textContent = `${kind} 재생 중: ${next.name}`;
-      },
-    });
+    try {
+      rec.start();
+      adapter.load()?.then(
+        () => rec.markInitialTilesLoaded(performance.now()),
+        (e) => {
+          // 재생은 계속 돌지만 타일 없이 잰 숫자라 invalid
+          // Cesium은 Error가 아닌 RequestErrorEvent를 던질 때가 있음(.message 없음) → 문자열로
+          rec.invalidate(`타일셋 불러오기 실패: ${e?.message ?? String(e)}`);
+          console.error("[bench] 타일셋 불러오기 실패", e);
+        },
+      );
+      status.textContent = `${kind} 재생 중: ${path.segments[0].name}`;
+      await play(path, adapter, {
+        onFrame: (now, i, workMs) => rec.frame(now, i, workMs),
+        onSegmentEnd: (i, camera) => {
+          rec.endSegment(i, camera);
+          // 완료 확인용: 두 번 돌려서 같은 구간 끝 값이 나오는지 비교
+          console.log(`[bench] 구간 끝 ${path.segments[i].name}`, JSON.stringify(camera));
+          const next = path.segments[i + 1];
+          if (next) status.textContent = `${kind} 재생 중: ${next.name}`;
+        },
+      });
+      last = rec.finish();
+      report(last);
+    } catch (e) {
+      // 중간에 깨진 회차는 결과를 버림 (finish는 숨김 감지 리스너를 풀려고만 부름)
+      rec.finish();
+      status.textContent = `⚠ 재생 실패: ${String(e?.message ?? e).split("\n")[0]} → 새로고침 후 다시 잴 것`;
+      console.error("[bench] 재생 실패", e);
+    } finally {
+      playBtn.disabled = false;
+      saveBtn.disabled = last === null;
+    }
+  });
 
-    runs++;
-    last = rec.finish();
-    console.log(`[bench] ${fileName(last)}  initialTilesLoaded ${last.initialTilesLoadedMs}ms`);
+  function report(r) {
+    console.log(`[bench] ${fileName(r)}  initialTilesLoaded ${r.initialTilesLoadedMs}ms`);
     console.table(
-      last.segments.map((s) => ({
+      r.segments.map((s) => ({
         구간: s.name,
         프레임: s.frames,
         평균ms: s.avgFrameMs,
@@ -111,13 +132,12 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
         메모리MB: round(s.memoryBytesAtEnd / 1e6, 1),
       })),
     );
-    status.textContent = `끝: ${fileName(last)} (다음 재생은 revisit)`;
-    if (!last.valid) {
-      status.textContent = `⚠ invalid: ${fileName(last)} · ${last.invalidReasons[0]} → 다시 잴 것`;
-      console.warn("[bench] invalid (summarize 평균에서 빠짐)\n" + last.invalidReasons.join("\n"));
+    status.textContent = `끝: ${fileName(r)} (다음 재생은 revisit)`;
+    if (!r.valid) {
+      status.textContent = `⚠ invalid: ${fileName(r)} · ${r.invalidReasons[0]} → 다시 잴 것`;
+      console.warn("[bench] invalid (summarize 평균에서 빠짐)\n" + r.invalidReasons.join("\n"));
     }
-    playBtn.disabled = saveBtn.disabled = false;
-  });
+  }
 
   const saveBtn = button(panel, "JSON 다운로드", () => {
     const a = document.createElement("a");

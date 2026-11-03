@@ -70,12 +70,12 @@
       if (BENCH) {
         const { createCesiumAdapter } = await import("../bench/adapters/cesium.js");
         const { mountBenchPanel } = await import("../bench/panel.js");
+        // ?path=로 다른 경로 파일을 쓸 수 있지만 같은 서버의 .json만 (다른 사이트 주소를 fetch하지 않게)
+        const pathUrl = new URL(params.get("path") ?? "../bench/path.json", location.href);
+        if (pathUrl.origin !== location.origin || !pathUrl.pathname.endsWith(".json"))
+          throw new Error(`?path=는 같은 서버의 .json만 가능: ${pathUrl}`);
         const adapter = createCesiumAdapter(viewer, tilesetUrl);
-        await mountBenchPanel({
-          adapter,
-          region,
-          pathUrl: params.get("path") ?? "../bench/path.json",
-        });
+        await mountBenchPanel({ adapter, region, pathUrl });
         window.bench = adapter; // 콘솔 확인용 (bench.tileset)
       } else {
         // 타일 개수·LOD를 보는 검사 패널 (오른쪽 위)

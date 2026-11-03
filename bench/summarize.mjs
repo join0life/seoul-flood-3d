@@ -80,7 +80,8 @@ for (const [key, runs] of groups) {
       내림: fix(mean(at("tilesUnloaded")), 1),
       대기요청: fix(mean(at("pendingRequestsAtEnd")), 1),
       메모리MB: fix(mem == null ? null : mem / 1e6),
-      "끝카메라차m": runs.length > 1 ? Number(camDiff.toExponential(2)) : "-",
+      // mm 단위까지 (지수 표기보다 읽기 쉬움)
+      "끝카메라차m": runs.length > 1 ? Number(camDiff.toFixed(3)) : "-",
     };
   });
   console.table(rows);

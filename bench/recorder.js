@@ -74,18 +74,23 @@ export function createRecorder(adapter, path, { region, kind, n }) {
       prevStats = s;
     },
 
+    /** 프레임 밖에서 생긴 문제(타일셋 불러오기 실패 등)도 invalid 사유로 */
+    invalidate(reason) {
+      invalidReasons.push(reason);
+    },
+
     markInitialTilesLoaded(now) {
       initialTilesLoadedMs = now - t0;
     },
 
     finish() {
       document.removeEventListener("visibilitychange", onVisibility);
-      const canvas = adapter.describe().canvas;
+      const info = adapter.describe(); // 한 번만 읽음 → renderer·canvas·옵션이 같은 시점 값
       return {
         version: 1,
         valid: invalidReasons.length === 0,
         invalidReasons,
-        renderer: adapter.describe().renderer,
+        renderer: info.renderer,
         region,
         kind, // first | revisit
         n,
@@ -93,8 +98,8 @@ export function createRecorder(adapter, path, { region, kind, n }) {
         env: {
           userAgent: navigator.userAgent,
           devicePixelRatio: window.devicePixelRatio,
-          canvas,
-          renderer: adapter.describe(), // 버전·타일셋 옵션(기본값 그대로, 값만 기록)
+          canvas: info.canvas,
+          renderer: info, // 버전·타일셋 옵션(기본값 그대로, 값만 기록)
         },
         // 첫 재생에서만 값이 있음. 재방문은 이미 불러온 상태라 null
         initialTilesLoadedMs: round(initialTilesLoadedMs),
