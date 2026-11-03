@@ -179,6 +179,13 @@ FlatGeobuf → 쿼드트리 분할 → 타일별 삼각분할(earcut)·병합
 - 3D Tiles는 지구 중심 좌표(ECEF)를 기준으로 하므로, 내 렌더러는 서울 중심 기준의 지역 좌표로 바꿔 씁니다.
 - CesiumJS가 내부에서 해 주는 타일 선택(`maximumScreenSpaceError`)과 캐시(`cacheBytes`)에 해당하는 부분을 직접 구현했습니다.
 
+렌더러 실행 (`renderer/`, Vite):
+
+```bash
+cd renderer && npm install && npm run dev
+# http://localhost:5173/?region=gwanak&at=zoom   (at: bench/path.json 구간 이름, 그 구간 끝 지점으로 카메라)
+```
+
 ## 7. 성능
 
 ### 7.1 측정 조건
@@ -278,6 +285,7 @@ FPS, draw call, 로드된 타일 수, 타일 메모리를 화면에 표시합니
 
 - Three.js
   - 자체 스트리밍 렌더러: 화면 오차 기준 타일 선택, 메모리 예산 캐시(LRU), 셰이더 필터, GPU picking
+  - 위경도 ↔ ECEF·ENU 변환만 3d-tiles-renderer의 `WGS84_ELLIPSOID`(Cesium과 같은 공식)를 씁니다. 타일 선택·캐시에는 쓰지 않습니다
 - CesiumJS
   - 비교 기준. 같은 타일셋을 `Cesium3DTileset`으로 띄워 같은 조건에서 측정
 - Vite + React
