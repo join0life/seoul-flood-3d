@@ -27,6 +27,8 @@ if (BENCH) {
 }
 
 const renderer = new CityRenderer(container);
+// 개발 서버가 이 모듈을 갈아끼울 때 이전 렌더러의 GPU 자원·리스너를 정리
+import.meta.hot?.dispose(() => renderer.dispose());
 const adapter = createThreeAdapter(renderer);
 Object.assign(window, { renderer, bench: adapter }); // 콘솔 확인용
 
@@ -59,6 +61,7 @@ const off = renderer.onFrame(() => {
     tiles: result.tiles,
     meshes: result.meshes,
     meshesWithoutFeatureId: result.meshesWithoutFeatureId,
+    failed: result.failed.length,
     calls: render.calls,
     triangles: render.triangles,
     geometries: memory.geometries,

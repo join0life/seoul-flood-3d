@@ -27,6 +27,8 @@ export interface LoadResult {
   meshes: number;
   /** _FEATURE_ID_0이 없는 메시 수 (0이어야 정상) */
   meshesWithoutFeatureId: number;
+  /** 불러오기에 실패한 타일 주소 (나머지 타일은 그대로 그림) */
+  failed: string[];
 }
 
 export class CityRenderer {
@@ -35,6 +37,7 @@ export class CityRenderer {
   readonly camera = new PerspectiveCamera(CESIUM_FOV, 1, 1, 1e6);
   private readonly loader = new GLTFLoader();
   private readonly frameListeners = new Set<() => void>();
+  private readonly resizeObserver: ResizeObserver;
 
   constructor(private readonly container: HTMLElement) {
     this.renderer = new WebGLRenderer({ antialias: true });
@@ -52,7 +55,8 @@ export class CityRenderer {
 
     this.camera.up.set(0, 0, 1); // 지역 좌표는 z가 위
     // 창이 아니라 컨테이너 크기를 따라감 → 측정 화면은 컨테이너를 1680×928로 고정, 평소엔 창 전체
-    new ResizeObserver(() => this.resize()).observe(container);
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(container);
     this.resize();
     this.renderer.setAnimationLoop(() => this.frame());
   }
@@ -60,6 +64,8 @@ export class CityRenderer {
   private resize() {
     const w = this.container.clientWidth;
     const h = this.container.clientHeight;
+    // 레이아웃 전(크기 0)에 불리면 aspect = w/0 = Infinity → fov가 NaN이 됨. 크기가 생길 때 다시 불림
+    if (w <= 0 || h <= 0) return;
     this.renderer.setSize(w, h);
     const aspect = w / h;
     this.camera.aspect = aspect;
@@ -94,7 +100,8 @@ export class CityRenderer {
     let meshes = 0;
     let meshesWithoutFeatureId = 0;
 
-    await Promise.all(
+    // allSettled: 타일 하나가 404여도 나머지는 그림(Promise.all이면 하나 실패에 전부 버려짐)
+    const results = await Promise.allSettled(
       entries.map(async (e) => {
         const gltf = await this.loader.loadAsync(e.url);
         const group = gltf.scene;
@@ -102,15 +109,39 @@ export class CityRenderer {
         group.matrixAutoUpdate = false;
         group.matrix.copy(e.matrix);
         group.traverse((o) => {
-          if (!(o as Mesh).isMesh) return;
+          if (!(o instanceof Mesh)) return;
           meshes++;
           // GLTFLoader는 모르는 속성 이름을 소문자로 바꿔 넣음: _FEATURE_ID_0 → _feature_id_0
-          if (!(o as Mesh).geometry.getAttribute("_feature_id_0")) meshesWithoutFeatureId++;
+          if (!o.geometry.getAttribute("_feature_id_0")) meshesWithoutFeatureId++;
         });
         this.scene.add(group);
       }),
     );
-    return { tiles: entries.length, meshes, meshesWithoutFeatureId };
+    const failed: string[] = [];
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        failed.push(entries[i].url);
+        console.warn(`[renderer] 타일 불러오기 실패: ${entries[i].url}`, r.reason);
+      }
+    });
+    return { tiles: entries.length, meshes, meshesWithoutFeatureId, failed };
+  }
+
+  /**
+   * GPU 자원·리스너 정리. GPU 메모리는 JS 가비지 컬렉터가 치우지 않아서 직접 dispose해야 함
+   * (HMR로 화면을 다시 만들거나, 1-4 이후 렌더러를 여러 번 만들 때 이전 것이 쌓이지 않게)
+   */
+  dispose() {
+    this.renderer.setAnimationLoop(null);
+    this.resizeObserver.disconnect();
+    this.frameListeners.clear();
+    this.scene.traverse((o) => {
+      if (!(o instanceof Mesh)) return;
+      o.geometry.dispose();
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
+    });
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
   }
 
   setCameraPoint(p: CameraPoint) {

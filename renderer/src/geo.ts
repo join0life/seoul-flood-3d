@@ -34,6 +34,8 @@ export interface CameraPoint {
   pitch: number; // 수평에서 위가 +(도). 내려다보면 -
 }
 
+// 계산용 임시 행렬을 매번 새로 만들지 않고 재사용(GC 부담 줄이기).
+// 동기 단일 호출 전용: 같은 함수가 겹쳐 불리거나(재진입) 워커 등에서 동시에 쓰면 값이 섞임
 const _enu = new Matrix4();
 const _basis = new Matrix4();
 

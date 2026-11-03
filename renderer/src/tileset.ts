@@ -40,7 +40,12 @@ export async function loadTileset(url: string): Promise<TileEntry[]> {
     // 3D Tiles: 자식 transform은 부모 좌표계 기준 상대값 → world = 부모 world × 자기 transform
     // (오른쪽부터 적용: 타일 안 좌표를 자기 transform으로 부모 좌표로, 다시 부모 world로 ECEF로)
     const world = parentWorld.clone();
-    if (tile.transform) world.multiply(new Matrix4().fromArray(tile.transform)); // tileset.json은 열 우선 = Three.js fromArray와 같음
+    if (tile.transform) {
+      // fromArray는 16개보다 짧아도 조용히 틀린 행렬을 만듦 → 타일러 쪽 회귀를 여기서 바로 잡음
+      if (tile.transform.length !== 16)
+        throw new Error(`transform 값이 ${tile.transform.length}개 (16개여야 함): ${tile.content?.uri ?? "(content 없음)"}`);
+      world.multiply(new Matrix4().fromArray(tile.transform)); // tileset.json은 열 우선 = Three.js fromArray와 같음
+    }
 
     if (tile.content) {
       // 최종 = ECEF→지역 × world × (y-up→z-up)
