@@ -15,8 +15,9 @@ BUILDING_COLS = ["A1", "A8", "A13", "A16", "A23", "A26", "A27"]
 SEOUL_BBOX = (175_000, 530_000, 225_000, 575_000)   # 서, 남, 동, 북 (m)
 
 
-def read(path):
-    gdf = gpd.read_file(path, engine="pyogrio", encoding="cp949")
+def read(path, columns=None):
+    """columns=None이면 모든 칸, []이면 도형만 읽음"""
+    gdf = gpd.read_file(path, engine="pyogrio", encoding="cp949", columns=columns)
     print(f"  {path.name}: {len(gdf):,}개, 좌표계 {gdf.crs.to_epsg()}")
     return gdf
 
@@ -59,7 +60,7 @@ def main():
     print("[침수]")
     floods = []
     for year, path in FLOOD_FILES.items():
-        f = read(path)[["geometry"]]          # 도형만 남김 → 주소·PNU·구호 정보 등 전부 버림
+        f = read(path, columns=[])            # 도형만 읽음 → 주소·PNU·구호 정보 등은 메모리에도 안 올림
         f["year"] = year
         f = f.to_crs(TARGET_CRS)              # 5179 → 5186 재투영
         floods.append(fix_geometry(f, f"침수 {year}"))
