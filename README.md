@@ -179,12 +179,19 @@ FlatGeobuf → 쿼드트리 분할 → 타일별 삼각분할(earcut)·병합
 - 3D Tiles는 지구 중심 좌표(ECEF)를 기준으로 하므로, 내 렌더러는 서울 중심 기준의 지역 좌표로 바꿔 씁니다.
 - CesiumJS가 내부에서 해 주는 타일 선택(`maximumScreenSpaceError`)과 캐시(`cacheBytes`)에 해당하는 부분을 직접 구현했습니다.
 
+렌더러 실행 (`renderer/`, Vite):
+
+```bash
+cd renderer && npm install && npm run dev
+# http://localhost:5173/?region=gwanak&at=zoom   (at: bench/path.json 구간 이름, 그 구간 끝 지점으로 카메라)
+```
+
 ## 7. 성능
 
 ### 7.1 측정 조건
 
 - 기기: MacBook Air (M1, 2020, 메모리 8GB) / 브라우저: Chrome 156 (arm64)
-- 창 크기·pixelRatio 고정: 【 】
+- 캔버스 CSS 1680×928, pixelRatio 1 → 드로잉 버퍼 1680×928 (`?bench=1`일 때 두 렌더러 모두 코드로 고정, `bench/canvas.js`)
 - 같은 카메라 경로를 자동 재생해 3회 평균
 - 첫 방문(캐시 없음)과 재방문은 따로 기록
 - CesiumJS 설정: 같은 `tileset.json`, `cacheBytes` = 내 메모리 예산, `maximumScreenSpaceError` = 내 화면 오차 기준, 지구본·배경 영상·대기 효과는 끔 (건물 타일 렌더링만 비교)
@@ -226,6 +233,7 @@ FlatGeobuf → 쿼드트리 분할 → 타일별 삼각분할(earcut)·병합
   - 카메라 위치는 프레임 수가 아니라 경과 시간으로 계산합니다. FPS가 달라도 시각 t의 카메라는 같습니다.
   - 위경도·방향은 선형으로, 높이는 로그 공간에서 보간합니다(일정 속도, 이징 없음). 재생 중에는 마우스 입력을 끕니다.
 - 측정 화면: `?bench=1` (기본 `seoul`, `&region=gwanak`으로 변경). 바탕 지도·지구본·하늘·대기 효과는 끄고 건물만 그립니다. 타일셋 옵션은 기본값 그대로 두고, 그 값을 결과 JSON에 기록합니다.
+- 캔버스는 1680×928로 고정합니다. 창이 이보다 작으면 측정 화면이 경고를 띄우고 재생을 막습니다(잘린 캔버스로 재지 않게). 결과 JSON `env.canvasFixed`에 고정 여부가 남습니다. 평소 화면은 창 크기를 따라갑니다.
 - 경로 지점 정하기: 평소 화면(바탕 지도 켜짐)에서 카메라를 맞추고 "현재 카메라 값 복사" → `path.json`에 붙여 넣기
 
 ```bash
@@ -278,6 +286,7 @@ FPS, draw call, 로드된 타일 수, 타일 메모리를 화면에 표시합니
 
 - Three.js
   - 자체 스트리밍 렌더러: 화면 오차 기준 타일 선택, 메모리 예산 캐시(LRU), 셰이더 필터, GPU picking
+  - 위경도 ↔ ECEF·ENU 변환은 타일러와 같은 공용 모듈(`shared/geo.ts`)을 씁니다. 타일을 만든 공식으로 그립니다
 - CesiumJS
   - 비교 기준. 같은 타일셋을 `Cesium3DTileset`으로 띄워 같은 조건에서 측정
 - Vite + React
@@ -296,8 +305,8 @@ FPS, draw call, 로드된 타일 수, 타일 메모리를 화면에 표시합니
   - UI 스타일링과 컴포넌트
 - 호스팅
   - 타일: Cloudflare R2 (잠정, 타일 총용량 확인 후 확정) / 앱: 【 】
-- pnpm
-  - 패키지 매니저
+- npm
+  - 패키지 매니저. 타일러(`tiler/node`)와 렌더러(`renderer`) 모두 `package-lock.json`으로 버전 고정
 
 ## 10. 한계
 

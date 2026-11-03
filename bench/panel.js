@@ -5,6 +5,7 @@
 
 import { play, validatePath } from "./player.js";
 import { createRecorder } from "./recorder.js";
+import { BENCH_CANVAS, canvasProblem } from "./canvas.js";
 
 const STYLE =
   "position:absolute;bottom:30px;left:10px;background:#fff;padding:8px 10px;" +
@@ -70,13 +71,30 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
 
   let runs = 0;
   let last = null;
+  let running = false;
   adapter.setCamera(path.start); // 타일은 아직 안 받음. 재생을 누르면 시작
 
+  // 측정 캔버스(1680×928)로 그릴 수 없으면 재생을 막음. 잘린 캔버스로 잰 숫자는 다른 조건이라 비교 불가
+  const ready = `${path.segments.map((s) => s.name).join(" → ")} · 재생을 누르면 타일을 받기 시작`;
+  function guard() {
+    if (running) return false;
+    const problem = canvasProblem(adapter.describe().canvas);
+    playBtn.disabled = Boolean(problem);
+    if (problem) status.textContent = `⚠ 측정 불가: ${problem}`;
+    else if (status.textContent.startsWith("⚠ 측정 불가")) status.textContent = ready;
+    return !problem;
+  }
+  // 렌더러가 캔버스 크기를 다음 프레임에 맞추는 경우가 있어서 한 박자 뒤에 검사
+  const afterFrames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  window.addEventListener("resize", () => afterFrames().then(guard));
+
   const playBtn = button(panel, "재생", async () => {
+    if (!guard()) return; // 재생 직전에도 한 번 더(창 크기를 바꿨을 수 있음)
+    running = true;
     playBtn.disabled = saveBtn.disabled = true;
     const kind = runs === 0 ? "first" : "revisit";
     const n = Number(nInput.value);
-    const rec = createRecorder(adapter, path, { region, kind, n });
+    const rec = createRecorder(adapter, path, { region, kind, n, canvasFixed: BENCH_CANVAS });
     runs++; // 실패한 회차도 셈: 타일이 일부 남아 있어서 다음 재생은 first가 아님
 
     try {
@@ -111,8 +129,10 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
       status.textContent = `⚠ 재생 실패: ${String(e?.message ?? e).split("\n")[0]} → 새로고침 후 다시 잴 것`;
       console.error("[bench] 재생 실패", e);
     } finally {
+      running = false;
       playBtn.disabled = false;
       saveBtn.disabled = last === null;
+      guard();
     }
   });
 
@@ -150,8 +170,10 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
     URL.revokeObjectURL(a.href);
   });
   saveBtn.disabled = true;
-  status.textContent = `${path.segments.map((s) => s.name).join(" → ")} · 재생을 누르면 타일을 받기 시작`;
+  status.textContent = ready;
   panel.append(status);
+  await afterFrames();
+  guard();
 }
 
 const fileName = (r) => `${r.renderer}_${r.region}_${r.kind}_${r.n}.json`;

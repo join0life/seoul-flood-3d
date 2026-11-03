@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import type { Enu } from "../src/geo.js";
+import type { Enu } from "../../../shared/geo.js";
 import { writeTileGlb } from "../src/glb.js";
 import { loadBuildings } from "../src/load.js";
 import { buildTileMesh } from "../src/mesh.js";

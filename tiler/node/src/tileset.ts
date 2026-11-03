@@ -1,5 +1,5 @@
-import type { Enu } from "./geo.js";
-import { enuToEcefMatrix } from "./geo.js";
+import type { Enu } from "../../../shared/geo.js";
+import { enuToEcefMatrix } from "../../../shared/geo.js";
 import type { TileNode } from "./quadtree.js";
 
 type Mat4 = number[]; // 4×4 열 우선
