@@ -80,7 +80,9 @@
         if (pathUrl.origin !== location.origin || !pathUrl.pathname.endsWith(".json"))
           throw new Error(`?path=는 같은 서버의 .json만 가능: ${pathUrl}`);
         const adapter = createCesiumAdapter(viewer, tilesetUrl);
-        await mountBenchPanel({ adapter, region, pathUrl });
+        // ?captureAt=3000: 재생 시작 후 3000ms 화면을 PNG로 저장 (양수 ms만)
+        const captureAt = Number(params.get("captureAt"));
+        await mountBenchPanel({ adapter, region, pathUrl, captureAt: captureAt > 0 ? captureAt : null });
         window.bench = adapter; // 콘솔 확인용 (bench.tileset)
       } else {
         // 타일 개수·LOD를 보는 검사 패널 (오른쪽 위)

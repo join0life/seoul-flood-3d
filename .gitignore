@@ -5,3 +5,4 @@ CLAUDE.md
 docs/
 __pycache__/
 .DS_Store
+bench/captures/

@@ -51,7 +51,11 @@ export function mountCopyButton(getCamera, parent = box()) {
   return parent;
 }
 
-export async function mountBenchPanel({ adapter, region, pathUrl }) {
+/**
+ * captureAt(ms): 재생 시작 후 그 시각이 지난 첫 프레임의 캔버스를 PNG로 저장(?captureAt=3000). 없으면 null
+ * 압축을 켰을 때와 껐을 때 같은 시각의 화면을 나란히 보려고 씀
+ */
+export async function mountBenchPanel({ adapter, region, pathUrl, captureAt = null }) {
   const panel = box();
   mountCopyButton(() => adapter.getCamera(), panel);
   const status = document.createElement("span");
@@ -96,8 +100,14 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
     const n = Number(nInput.value);
     const rec = createRecorder(adapter, path, { region, kind, n, canvasFixed: BENCH_CANVAS });
     runs++; // 실패한 회차도 셈: 타일이 일부 남아 있어서 다음 재생은 first가 아님
+    let capture = null; // { dataUrl, atMs }
 
     try {
+      const playStart = performance.now();
+      if (captureAt !== null) {
+        // toDataURL(1680×928 PNG 인코딩)이 그 프레임 작업에 섞임 → 캡처 회차는 평균에 넣지 않음
+        rec.invalidate(`캡처 회차(?captureAt=${captureAt}): PNG 저장 시간이 프레임 시간에 섞임`);
+      }
       rec.start();
       const loading = adapter.load(); // 재방문이면 null
       if (loading) rec.expectInitialTilesLoaded();
@@ -112,7 +122,12 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
       );
       status.textContent = `${kind} 재생 중: ${path.segments[0].name}`;
       await play(path, adapter, {
-        onFrame: (now, i, workMs) => rec.frame(now, i, workMs),
+        onFrame: (now, i, workMs) => {
+          rec.frame(now, i, workMs);
+          // 이 콜백은 렌더 직후(Cesium scene.postRender)에 불림 → 방금 그린 화면을 읽을 수 있음
+          if (captureAt !== null && !capture && now - playStart >= captureAt)
+            capture = { dataUrl: adapter.captureNow(), atMs: Math.round(now - playStart) };
+        },
         onSegmentEnd: (i, camera) => {
           rec.endSegment(i, camera);
           // 완료 확인용: 두 번 돌려서 같은 구간 끝 값이 나오는지 비교
@@ -122,8 +137,10 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
         },
       });
       rec.stopNetwork();
-      last = rec.finish({ contentEncoding: await probeEncoding(adapter.describe().tilesetUrl) });
+      const contentEncoding = await probeEncoding(adapter.describe().tilesetUrl);
+      last = rec.finish({ contentEncoding });
       report(last);
+      if (captureAt !== null) saveCapture(capture, captureAt, contentEncoding, last.totalMs);
     } catch (e) {
       // 중간에 깨진 회차는 결과를 버림 (finish는 숨김 감지 리스너를 풀려고만 부름)
       rec.finish();
@@ -193,3 +210,20 @@ async function probeEncoding(url) {
 }
 
 const fileName = (r) => `${r.renderer}_${r.region}_${r.kind}_${r.n}.json`;
+
+/**
+ * 캡처 PNG 다운로드: capture_{br|gzip|none}_{captureAt}ms.png
+ * 압축 여부는 재생 뒤 probeEncoding 결과(서버가 실제로 보낸 것). 재생 중에 확인하면 요청이 측정에 섞여서 끝나고 저장
+ */
+function saveCapture(capture, captureAt, contentEncoding, totalMs) {
+  if (!capture) {
+    console.warn(`[bench] 캡처 없음: captureAt ${captureAt}ms가 재생 시간(${totalMs}ms)보다 김`);
+    return;
+  }
+  const enc = contentEncoding === "identity" ? "none" : (contentEncoding ?? "unknown");
+  const a = document.createElement("a");
+  a.href = capture.dataUrl;
+  a.download = `capture_${enc}_${captureAt}ms.png`;
+  a.click();
+  console.log(`[bench] 캡처 저장 ${a.download} (실제 ${capture.atMs}ms 프레임)`);
+}
