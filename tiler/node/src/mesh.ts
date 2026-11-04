@@ -1,6 +1,6 @@
 import earcut, { deviation } from "earcut";
 import type { Polygon, Position } from "geojson";
-import { enuAt, toEcef, toLocal, type Enu, type Vec3 } from "./geo.js";
+import { enuAt, toEcef, toLocal, type Enu, type Vec3 } from "../../../shared/geo.js";
 import type { TileNode } from "./quadtree.js";
 
 /** 타일 하나 = 건물 전부를 합친 메시 하나 (draw call 1번) */
@@ -14,6 +14,10 @@ export interface TileMesh {
 }
 
 export function buildTileMesh(tile: TileNode): TileMesh {
+  // featureIds가 Uint16이라 65,536동이 넘으면 번호가 넘쳐 다른 건물과 겹침. 지금은 MAX_PER_TILE(1000)이 막지만
+  // 그 값을 올릴 때 조용히 깨지지 않게 여기서 멈춤
+  if (tile.buildings.length > 65536)
+    throw new Error(`타일 ${tile.id}: 건물 ${tile.buildings.length}동 > 65,536 (featureIds Uint16 한도)`);
   const [w, s, e, n] = tile.region;
   const enu = enuAt((w + e) / 2, (s + n) / 2);
   const pos: number[] = [],

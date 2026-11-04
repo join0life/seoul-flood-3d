@@ -1,0 +1,120 @@
+// 결과 폴더의 *.json을 읽어 {renderer, region, first|revisit}별 평균 표를 출력
+// 실행: node bench/summarize.mjs bench/results/fast4g   (라이브러리 없음, Node 내장 모듈만)
+// 네트워크 조건(DevTools throttling)마다 폴더를 나눔 → 결과 JSON에 조건 칸이 없어서 폴더 이름을 조건으로 표시
+//
+// 평균 내기 전에 검사하는 것
+//   - 같은 묶음의 결과가 같은 path로 잰 것인지 (경로가 다르면 평균이 의미 없음 → 멈춤)
+//   - 구간 끝 카메라가 회차끼리 같은지 (최대 차이를 m로 출력)
+//   - 3회가 아니면 표에 "n회"로 표시 (1회 값을 평균처럼 보이지 않게)
+//   - valid: false인 결과(재생 중 화면 숨김, 1초 넘는 프레임)는 평균에서 빼고 경고
+
+import { readdirSync, readFileSync } from "node:fs";
+import { basename, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const dir = resolve(process.argv[2] ?? join(fileURLToPath(import.meta.url), "../results"));
+// 폴더는 한 번만 읽음. withFileTypes → 파일·폴더 구분이 같이 와서 statSync를 따로 안 부름
+let entries;
+try {
+  entries = readdirSync(dir, { withFileTypes: true });
+} catch {
+  console.error(`${dir} 폴더가 없음`);
+  process.exit(1);
+}
+const files = entries
+  .filter((e) => e.isFile() && e.name.endsWith(".json"))
+  .map((e) => e.name)
+  .sort();
+if (!files.length) {
+  // bench/results처럼 조건별 하위 폴더만 있는 곳을 줬으면 실행할 명령을 알려줌
+  const subdirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  console.error(`${dir}에 결과 JSON이 없음`);
+  for (const d of subdirs) console.error(`  → node bench/summarize.mjs ${relative(process.cwd(), join(dir, d))}`);
+  process.exit(1);
+}
+
+// 조건 = bench/results 기준 폴더 경로 (예: fast4g, cesium-br/fast4g). 밖의 폴더면 폴더 이름
+const resultsRoot = join(fileURLToPath(import.meta.url), "../results");
+const rel = relative(resultsRoot, dir);
+const condition = rel && !rel.startsWith("..") ? rel : basename(dir);
+
+const groups = new Map();
+for (const f of files) {
+  const r = JSON.parse(readFileSync(join(dir, f), "utf8"));
+  if (r.valid === false) {
+    console.warn(`⚠ ${f}: invalid라서 평균에서 뺌 → 다시 잴 것\n    ${r.invalidReasons.join("\n    ")}`);
+    continue;
+  }
+  const key = `${r.renderer}_${r.region}_${r.kind}`;
+  if (!groups.has(key)) groups.set(key, []);
+  groups.get(key).push({ file: f, ...r });
+}
+
+if (!groups.size) {
+  console.error("평균 낼 수 있는 결과가 없음 (모두 invalid)");
+  process.exit(1);
+}
+
+const mean = (xs) => {
+  const v = xs.filter((x) => x != null);
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+};
+const fix = (x, d = 1) => (x == null ? "【 】" : Number(x.toFixed(d)));
+
+// 두 지점 사이 거리(m). 서울 범위에서는 평면 근사로 충분
+function distance(a, b) {
+  const R = 6378137;
+  const rad = Math.PI / 180;
+  const dx = (b.lon - a.lon) * rad * R * Math.cos(a.lat * rad);
+  const dy = (b.lat - a.lat) * rad * R;
+  return Math.hypot(dx, dy, b.height - a.height);
+}
+
+for (const [key, runs] of groups) {
+  const paths = new Set(runs.map((r) => JSON.stringify(r.path)));
+  if (paths.size > 1) {
+    console.error(`${key}: path가 다른 결과가 섞임 → ${runs.map((r) => r.file).join(", ")}`);
+    process.exit(1);
+  }
+  const label = runs.length === 3 ? "3회 평균" : `${runs.length}회${runs.length > 1 ? " 평균" : ""} (3회 아님)`;
+  console.log(`\n■ ${key} · 조건 ${condition} (결과 폴더) · ${label} · ${runs.map((r) => r.file).join(", ")}`);
+  // 미완료 회차가 있으면 평균을 내지 않음(끝난 회차만 평균 내면 빨라 보임) → 최소 이만큼 걸렸다는 하한만
+  const pending = runs.filter((r) => r.initialTilesPending);
+  const initial = pending.length
+    ? `> ${fix(Math.min(...pending.map((r) => r.totalMs)) / 1000)} s (미완료 ${pending.length}/${runs.length})`
+    : `${fix(mean(runs.map((r) => r.initialTilesLoadedMs)), 0)} ms`;
+  console.log(`  initialTilesLoaded: ${initial}`);
+  // 압축 전송 기록이 있는 결과만 (1-5 이전 결과에는 없음)
+  const tr = runs.map((r) => r.env?.transfer).filter((t) => t?.requests != null);
+  if (tr.length) {
+    const enc = [...new Set(tr.map((t) => t.contentEncoding))].join(", ");
+    const mb = (k) => fix(mean(tr.map((t) => t[k])) / 1e6, 2);
+    console.log(`  전송: Content-Encoding ${enc} · 요청 ${fix(mean(tr.map((t) => t.requests)), 0)}개 · 받은 ${mb("transferBytes")}MB · 압축 본문 ${mb("encodedBytes")}MB · 원본 ${mb("decodedBytes")}MB`);
+  }
+
+  const rows = runs[0].segments.map((s, i) => {
+    const at = (k) => runs.map((r) => r.segments[i][k]);
+    // 구간 끝 카메라: 첫 회차 기준으로 나머지 회차가 얼마나 다른지
+    const cams = at("endCamera");
+    const camDiff = Math.max(0, ...cams.slice(1).map((c) => distance(cams[0], c)));
+    const slow = mean(at("slowFrameRatio"));
+    const mem = mean(at("memoryBytesAtEnd"));
+    return {
+      구간: s.name,
+      프레임: fix(mean(at("frames")), 0),
+      평균ms: fix(mean(at("avgFrameMs")), 2),
+      최대ms: fix(mean(at("maxFrameMs"))),
+      "느린%": fix(slow == null ? null : slow * 100),
+      작업평균ms: fix(mean(at("avgWorkMs")), 2),
+      작업p95ms: fix(mean(at("p95WorkMs")), 2),
+      작업최대ms: fix(mean(at("maxWorkMs")), 2),
+      불러옴: fix(mean(at("tilesLoaded")), 1),
+      내림: fix(mean(at("tilesUnloaded")), 1),
+      대기요청: fix(mean(at("pendingRequestsAtEnd")), 1),
+      메모리MB: fix(mem == null ? null : mem / 1e6),
+      // mm 단위까지 (지수 표기보다 읽기 쉬움)
+      "끝카메라차m": runs.length > 1 ? Number(camDiff.toFixed(3)) : "-",
+    };
+  });
+  console.table(rows);
+}

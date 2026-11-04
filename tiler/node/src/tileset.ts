@@ -1,5 +1,5 @@
-import type { Enu } from "./geo.js";
-import { enuToEcefMatrix } from "./geo.js";
+import type { Enu } from "../../../shared/geo.js";
+import { enuToEcefMatrix } from "../../../shared/geo.js";
 import type { TileNode } from "./quadtree.js";
 
 type Mat4 = number[]; // 4×4 열 우선
@@ -20,9 +20,24 @@ function invertRigid(m: Mat4): Mat4 {
 }
 const rad = (d: number) => (d * Math.PI) / 180;
 
+/** tileset.json에 쓰는 타일 한 칸 (3D Tiles 1.1 중 이 타일러가 쓰는 필드만). 필드를 빠뜨리거나 잘못 쓰면 컴파일 때 잡힘 */
+export interface TileJson {
+  boundingVolume: { region: [number, number, number, number, number, number] };
+  geometricError: number;
+  refine?: "ADD" | "REPLACE";
+  transform: Mat4;
+  content: { uri: string };
+  children?: TileJson[];
+}
+export interface TilesetJson {
+  asset: { version: "1.1" };
+  geometricError: number;
+  root: TileJson;
+}
+
 /** tileset.json 만들기. transform은 부모 기준으로 곱해지므로, 자식은 "부모 → 자식" 상대 행렬을 넣음 */
-export function buildTileset(root: TileNode, enuOf: Map<string, Enu>, rootError: number) {
-  function toJson(t: TileNode, parentWorld: Mat4 | null): any {
+export function buildTileset(root: TileNode, enuOf: Map<string, Enu>, rootError: number): TilesetJson {
+  function toJson(t: TileNode, parentWorld: Mat4 | null): TileJson {
     const world = enuToEcefMatrix(enuOf.get(t.id)!);
     const transform = parentWorld ? multiply(invertRigid(parentWorld), world) : world;
     const [w, s, e, n, maxH] = t.region;
