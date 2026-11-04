@@ -21,8 +21,8 @@ def main():
         hit = gpd.sjoin(b[["geometry"]], f[["geometry"]], predicate="intersects").index.unique()
         touched = b.index.isin(hit)
         if date is None and touched.any():
-            # 날짜를 모르면 사용승인일 거르기가 틀어짐. 닿은 건물이 0동일 때만 넘어감
-            raise ValueError(f"{year} 침수에 닿은 건물 {touched.sum():,}동인데 FLOOD_DATES 날짜가 비어 있음. 날짜를 채울 것")
+            # 날짜를 모르면 사용승인일 거르기가 틀어짐. 닿은 건물이 0건일 때만 넘어감
+            raise ValueError(f"{year} 침수에 닿은 건물 {touched.sum():,}건인데 FLOOD_DATES 날짜가 비어 있음. 날짜를 채울 것")
 
         cutoff = pd.Timestamp(date or f"{year}-01-01")
         built_before = appr.isna() | (appr < cutoff)    # 날짜 모르면 남김(전에 정한 규칙)

@@ -59,7 +59,7 @@ def main():
     for year in FLOOD_DATES:
         flooded = (out["floodYears"] & (1 << (year - FIRST_YEAR))) > 0
         cand = flooded & (out["ugrndFlr"] >= 1) & out["isResidential"]
-        print(f"  후보({year}): {cand.sum():,}동")
+        print(f"  후보({year}): {cand.sum():,}건")
 
     out = out.to_crs(4326)                            # 위경도(WGS84)로 바꿔서 저장
     out.to_file(FGB, driver="FlatGeobuf", engine="pyogrio")

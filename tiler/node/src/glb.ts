@@ -201,7 +201,7 @@ export async function writeTileGlb(
     schema.setEnum(name, en);
   }
 
-  // 2) 속성표: 건물 1동 = 1줄. 줄 순서 = featureId
+  // 2) 속성표: 건물 1건 = 1줄. 줄 순서 = featureId
   const table = metaExt
     .createPropertyTable()
     .setClass(CLASS)
