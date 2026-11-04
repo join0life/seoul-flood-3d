@@ -33,8 +33,10 @@ if (!files.length) {
   process.exit(1);
 }
 
-// 조건 = 폴더 이름 (예: localhost, fast4g)
-const condition = basename(dir);
+// 조건 = bench/results 기준 폴더 경로 (예: fast4g, cesium-br/fast4g). 밖의 폴더면 폴더 이름
+const resultsRoot = join(fileURLToPath(import.meta.url), "../results");
+const rel = relative(resultsRoot, dir);
+const condition = rel && !rel.startsWith("..") ? rel : basename(dir);
 
 const groups = new Map();
 for (const f of files) {
@@ -75,13 +77,20 @@ for (const [key, runs] of groups) {
     process.exit(1);
   }
   const label = runs.length === 3 ? "3회 평균" : `${runs.length}회${runs.length > 1 ? " 평균" : ""} (3회 아님)`;
-  console.log(`\n■ ${key} · 조건 ${condition} (폴더 이름) · ${label} · ${runs.map((r) => r.file).join(", ")}`);
+  console.log(`\n■ ${key} · 조건 ${condition} (결과 폴더) · ${label} · ${runs.map((r) => r.file).join(", ")}`);
   // 미완료 회차가 있으면 평균을 내지 않음(끝난 회차만 평균 내면 빨라 보임) → 최소 이만큼 걸렸다는 하한만
   const pending = runs.filter((r) => r.initialTilesPending);
   const initial = pending.length
     ? `> ${fix(Math.min(...pending.map((r) => r.totalMs)) / 1000)} s (미완료 ${pending.length}/${runs.length})`
     : `${fix(mean(runs.map((r) => r.initialTilesLoadedMs)), 0)} ms`;
   console.log(`  initialTilesLoaded: ${initial}`);
+  // 압축 전송 기록이 있는 결과만 (1-5 이전 결과에는 없음)
+  const tr = runs.map((r) => r.env?.transfer).filter((t) => t?.requests != null);
+  if (tr.length) {
+    const enc = [...new Set(tr.map((t) => t.contentEncoding))].join(", ");
+    const mb = (k) => fix(mean(tr.map((t) => t[k])) / 1e6, 2);
+    console.log(`  전송: Content-Encoding ${enc} · 요청 ${fix(mean(tr.map((t) => t.requests)), 0)}개 · 받은 ${mb("transferBytes")}MB · 압축 본문 ${mb("encodedBytes")}MB · 원본 ${mb("decodedBytes")}MB`);
+  }
 
   const rows = runs[0].segments.map((s, i) => {
     const at = (k) => runs.map((r) => r.segments[i][k]);

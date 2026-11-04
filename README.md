@@ -237,14 +237,21 @@ cd renderer && npm install && npm run dev
 - 경로 지점 정하기: 평소 화면(바탕 지도 켜짐)에서 카메라를 맞추고 "현재 카메라 값 복사" → `path.json`에 붙여 넣기
 
 ```bash
-python -m http.server 8080      # 루트에서
-# http://localhost:8080/viewer/cesium-check.html?bench=1
+node bench/compress-tiles.mjs   # 루트에서. data/tiles/**의 .glb·.json 옆에 .br·.gz를 미리 만듦(원본 그대로, 타일러를 다시 돌린 뒤에만)
+node bench/serve.mjs            # http://localhost:8080/viewer/cesium-check.html?bench=1
 ```
+
+- `bench/serve.mjs`는 `python -m http.server 8080`과 포트·경로가 같고, 바뀌는 건 압축뿐입니다. 요청의 `Accept-Encoding`을 보고 미리 만든 `.br` → `.gz` → 원본 순으로 골라 `Content-Encoding`을 붙여 보냅니다.
+  - 요청마다 압축하지 않는 이유: 압축하는 CPU 시간이 측정에 섞이기 때문입니다.
+  - python과 같게 맞춘 것: 요청마다 연결을 새로 맺음(`Connection: close`, python은 HTTP/1.0), `Last-Modified`·`If-Modified-Since` → 304, `.glb`의 `Content-Type`(`application/octet-stream`).
+- 결과 JSON `env.transfer`에 실제로 받은 압축 방식(`tileset.json` 응답의 `Content-Encoding`)과 재생 중 타일 요청 바이트(전송·압축 본문·원본, 압축돼서 온 요청 수)가 남습니다.
+- 주의: python 서버 때 받은 타일이 브라우저 HTTP 캐시에 남아 있으면, 파일 수정 시각이 같아 서버가 304로 답하고 브라우저는 압축 안 된 사본을 그대로 씁니다. 첫 방문은 "Disable cache"를 켜고 재므로 괜찮고, 결과 JSON `env.transfer.compressedRequests`가 0이면 압축 없이 받은 회차입니다.
+- 압축 전송으로 잰 결과는 `bench/results/cesium-br/<조건>/`에 둡니다. summarize 제목에는 `cesium-br/fast4g`처럼 `bench/results` 아래 경로가 조건으로 나옵니다.
 
 1. **첫 방문**: DevTools Network의 "Disable cache"를 켜고 새로고침 → 회차(1~3) 고르기 → 재생 → "JSON 다운로드"
 2. **재방문**: 새로고침 없이 같은 화면에서 재생 한 번 더 → "JSON 다운로드" (렌더러 메모리에 타일이 남은 상태)
 3. 1~2를 3번(회차 1·2·3) → 결과 파일 6개 `{renderer}_{region}_{first|revisit}_{n}.json`을 네트워크 조건(DevTools throttling) 폴더 `bench/results/<조건>/`로 옮기기 (예: 제한 없음은 `bench/results/localhost/`, Fast 4G는 `bench/results/fast4g/`). 결과 JSON에 조건 칸이 없어서 폴더 이름이 곧 조건 기록이고, `bench/results/` 바로 아래에 두면 summarize가 읽지 않습니다.
-4. `node bench/summarize.mjs bench/results/<조건>` → 그 조건의 묶음별 3회 평균 표. 제목에 폴더 이름을 조건으로 표시합니다. 경로가 다른 결과가 섞이면 멈추고, 구간 끝 카메라가 회차끼리 얼마나 다른지(m)도 같이 출력합니다.
+4. `node bench/summarize.mjs bench/results/<조건>` → 그 조건의 묶음별 3회 평균 표. 제목에 `bench/results` 아래 폴더 경로를 조건으로 표시합니다. 경로가 다른 결과가 섞이면 멈추고, 구간 끝 카메라가 회차끼리 얼마나 다른지(m)도 같이 출력합니다.
 
 재생 중 탭 전환·창 가림으로 브라우저가 렌더를 멈추면 그 회차는 렌더러 성능이 아닙니다. 재생 중 화면이 숨거나(`visibilitychange`) 1초 넘는 프레임 간격이 있으면 결과 JSON에 `valid: false`와 사유를 남기고, summarize는 그 파일을 평균에서 빼고 경고합니다. 그 회차는 다시 잽니다.
 
@@ -254,6 +261,78 @@ python -m http.server 8080      # 루트에서
 
 - 프레임 간격은 화면 주사율에 묶입니다(60Hz면 일이 적어도 16.67ms). 그래서 렌더러가 한 프레임에 실제로 쓴 시간을 따로 잽니다. CesiumJS는 `scene.preUpdate` ~ `scene.postRender` 사이입니다.
 - 작업 시간은 메인 스레드 CPU 시간입니다. GPU가 실제로 그리는 시간과 프레임 사이의 비동기 작업(타일 응답 처리 등)은 들어가지 않으므로, 사용자가 보는 끊김은 프레임 간격으로 봅니다.
+
+### 7.5 병목 분석: Fast 4G 첫 화면
+
+1-2 CesiumJS 기준선에서 Fast 4G 첫 화면(initialTilesLoaded)은 8,052ms(3회 평균)였습니다. 무엇을 받느라 걸리는지 나눠 봤습니다.
+
+**첫 화면에 받는 파일** (`?bench=1&region=seoul`, overview 지점, 캔버스 1680×928, `maximumScreenSpaceError` 16 기본값. 1회 측정)
+
+| 요청 | 바이트 |
+| --- | --- |
+| `tileset.json` | 2,143,697 |
+| `tiles/0.glb` (루트 타일) | 5,217,372 |
+| 합계 (2개) | 7,361,069 |
+
+- initialTilesLoaded 시점의 Resource Timing 목록입니다. 그 뒤 3초 동안 추가 요청은 없었습니다.
+
+**GLB 안 바이트 구성** (파일 파싱, 항목 합 = 파일 크기)
+
+| 항목 | 루트 `0.glb` | 서울 평균 (1,473개) |
+| --- | --- | --- |
+| POSITION | 1,768,320 (33.9%) | 202,531 (36.1%) |
+| NORMAL | 1,768,320 (33.9%) | 202,531 (36.1%) |
+| `_FEATURE_ID_0` | 294,720 (5.6%) | 33,755 (6.0%) |
+| 꼭짓점 정렬 패딩 | 294,720 (5.6%) | 33,755 (6.0%) |
+| 인덱스 | 1,038,456 (19.9%, UINT32) | 60,981 (10.9%) |
+| 속성표 (`EXT_structural_metadata`) | 49,273 (0.9%) | 23,173 (4.1%) |
+| JSON·헤더·기타 | 3,563 (0.1%) | 3,557 (0.6%) |
+| 합계 | 5,217,372 | 560,282 |
+
+- 꼭짓점 속성은 인터리브(꼭짓점마다 28B = POSITION 12 + NORMAL 12 + feature ID 2 + 패딩 2)입니다.
+- 루트 타일에는 서울에서 가장 큰 건물 1,000동, 꼭짓점 147,360개가 들어 있습니다.
+
+**시간 분해** (Fast 4G 프리셋: 다운로드 9 Mbps × 0.9 = 1,012,500 B/s, 지연 60ms × 2.75 = 165ms. Chrome DevTools 소스 `NetworkManager.ts` 기준)
+
+| 항목 | 계산 | 값 | 구분 |
+| --- | --- | --- | --- |
+| 바이트 ÷ 속도 | 7,361,069 ÷ 1,012,500 | 7.27 s | 계산 |
+| 요청 수 × 지연 | 2 × 165ms (glb는 tileset.json을 받은 뒤 요청) | 0.33 s | 계산 |
+| 받은 뒤 처리 | 1-2 localhost 첫 화면 시간 | 0.21 s | 측정 (3회 평균) |
+| 합계 | | 7.81 s | 추정 (실측 8.05 s의 약 97%) |
+
+- 첫 화면 시간의 대부분은 받는 바이트 양입니다(대역폭이 병목). 요청 수에 따른 지연은 작습니다.
+
+**전송 압축** (python `http.server`는 압축하지 않음: 응답에 `Content-Encoding` 없음)
+
+| 파일 | 원본 | gzip -6 | brotli 11 |
+| --- | --- | --- | --- |
+| `tileset.json` | 2,143,697 | 269,519 (12.6%) | 185,732 (8.7%) |
+| `0.glb` | 5,217,372 | 1,688,850 (32.4%) | 1,080,225 (20.7%) |
+| 첫 화면 합계 | 7,361,069 | 1,958,369 (26.6%) | 1,265,957 (17.2%) |
+
+- 파일을 실제로 압축해서 잰 크기입니다. 압축했을 때 첫 화면 시간은 측정으로 확인합니다(1-5).
+
+### 7.6 1-5 압축 전송 결과
+
+CesiumJS 1.146, 서울 타일셋, `bench/path.json` 고정 경로, 캔버스 1680×928·pixelRatio 1, Disable cache, 첫 방문 각 3회 평균. 개선 전은 python `http.server`(무압축, `bench/results/fast4g`·`localhost`), 개선 후는 `bench/serve.mjs`(brotli, `bench/results/cesium-br/`). 값은 `bench/summarize.mjs` 출력 그대로입니다.
+
+| 조건 | 지표 | 개선 전 (1-2, 무압축) | 개선 후 (1-5, brotli) |
+| --- | --- | --- | --- |
+| Fast 4G | 첫 화면 (initialTilesLoaded) | 8,052ms | 1,780ms |
+| Fast 4G | 구간 끝 대기 요청 (zoom / alley) | 11 / 14 | 8 / 0 |
+| Fast 4G | 받은 바이트 / 원본 | 기록 없음 | 17.98MB / 78.38MB |
+| Fast 4G | 불러온 타일 (overview / zoom / alley / return) | 0 / 1 / 2 / 1 | 1 / 4.3 / 46.7 / 8 |
+| Fast 4G | 받은 타일 메모리 (많을수록 화면이 채워짐) | 14.5MB | 76MB |
+| No throttling | 첫 화면 (initialTilesLoaded) | 213ms | 192ms |
+| No throttling | 한 프레임 작업 평균 (overview / zoom / alley / return) | 1.07 / 0.86 / 1.08 / 0.79ms | 1.04 / 0.92 / 1.2 / 0.82ms |
+| No throttling | 불러온 타일 (overview / zoom / alley / return) | 1 / 24 / 33 / 6 | 1 / 24 / 33 / 6 |
+| No throttling | 받은 타일 메모리 (많을수록 화면이 채워짐) | 88.9MB | 88.9MB |
+
+- 원인: Fast 4G 첫 화면 시간의 약 90%가 압축 없는 전송이었습니다(7.5절).
+- No throttling에서 압축 해제로 인한 저하는 없었습니다.
+- 남은 것: zoom 구간 대기 요청 8개 → [issue #8](https://github.com/join0life/seoul-flood-3d/issues/8)
+- 배포 요구사항: [issue #9](https://github.com/join0life/seoul-flood-3d/issues/9) 참고
 
 ## 8. 주요 기능
 
