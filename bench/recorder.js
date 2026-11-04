@@ -32,6 +32,7 @@ export function createRecorder(adapter, path, { region, kind, n, canvasFixed = n
   // invalid 사유. 하나라도 있으면 그 회차는 summarize 평균에서 빠짐 (파일은 남겨서 원인 확인용)
   const invalidReasons = [];
   let curSeg = 0;
+  let network = null;
   const elapsed = () => ((performance.now() - t0) / 1000).toFixed(1);
   // 탭 전환·창 최소화로 화면이 숨으면 브라우저가 rAF를 멈춤 → 그동안의 숫자는 렌더러 성능이 아님
   const onVisibility = () => {
@@ -40,6 +41,10 @@ export function createRecorder(adapter, path, { region, kind, n, canvasFixed = n
 
   return {
     start() {
+      // 재생 중 타일 요청을 Resource Timing으로 셈. 기본 버퍼(250개)는 서울 경로에서 넘칠 수 있어 늘림
+      performance.setResourceTimingBufferSize(100000);
+      performance.clearResourceTimings();
+      network = null;
       t0 = performance.now();
       lastFrame = null;
       prevStats = adapter.getStats();
@@ -87,6 +92,25 @@ export function createRecorder(adapter, path, { region, kind, n, canvasFixed = n
       invalidReasons.push(reason);
     },
 
+    /**
+     * 재생이 끝난 순간의 타일 요청 바이트를 잡아 둠 (뒤에 오는 확인용 요청이 섞이지 않게 finish 전에 부름)
+     *   transferBytes: 헤더 포함 실제로 오간 바이트 (캐시에서 오면 0, 304면 헤더만)
+     *   encodedBytes : 응답 본문 그대로(압축된 크기)   decodedBytes: 풀린 뒤 크기
+     *   compressedRequests: encoded < decoded인 요청 수 = 압축돼서 온 요청
+     */
+    stopNetwork() {
+      const base = adapter.describe().tilesetUrl?.replace(/[^/]*$/, "");
+      const list = performance.getEntriesByType("resource").filter((e) => base && e.name.startsWith(base));
+      const sum = (k) => list.reduce((s, e) => s + e[k], 0);
+      network = {
+        requests: list.length,
+        transferBytes: sum("transferSize"),
+        encodedBytes: sum("encodedBodySize"),
+        decodedBytes: sum("decodedBodySize"),
+        compressedRequests: list.filter((e) => e.encodedBodySize > 0 && e.encodedBodySize < e.decodedBodySize).length,
+      };
+    },
+
     /** 이 회차에서 타일셋 불러오기를 시작함 → 끝날 때까지 첫 화면 로드가 안 오면 "미완료" */
     expectInitialTilesLoaded() {
       expectInitialTiles = true;
@@ -96,7 +120,8 @@ export function createRecorder(adapter, path, { region, kind, n, canvasFixed = n
       if (!finished) initialTilesLoadedMs = now - t0;
     },
 
-    finish() {
+    /** extra.contentEncoding: tileset.json 응답의 Content-Encoding (panel이 재생 뒤 HEAD로 확인) */
+    finish(extra = {}) {
       finished = true;
       document.removeEventListener("visibilitychange", onVisibility);
       const info = adapter.describe(); // 한 번만 읽음 → renderer·canvas·옵션이 같은 시점 값
@@ -116,6 +141,8 @@ export function createRecorder(adapter, path, { region, kind, n, canvasFixed = n
           // 측정 캔버스 고정 여부. 고정했으면 { fixed: true, width, height } (bench/canvas.js)
           canvasFixed: canvasFixed ? { fixed: true, ...canvasFixed } : { fixed: false },
           renderer: info, // 버전·타일셋 옵션(기본값 그대로, 값만 기록)
+          // 실제로 받은 압축 방식과 바이트. 서버가 바뀌어도(python ↔ bench/serve.mjs) 결과만 보고 구분되게
+          transfer: { contentEncoding: extra.contentEncoding ?? null, ...network },
         },
         // 첫 재생에서만 값이 있음. 재방문은 이미 불러온 상태라 null
         initialTilesLoadedMs: round(initialTilesLoadedMs),

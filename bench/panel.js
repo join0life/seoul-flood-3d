@@ -121,7 +121,8 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
           if (next) status.textContent = `${kind} 재생 중: ${next.name}`;
         },
       });
-      last = rec.finish();
+      rec.stopNetwork();
+      last = rec.finish({ contentEncoding: await probeEncoding(adapter.describe().tilesetUrl) });
       report(last);
     } catch (e) {
       // 중간에 깨진 회차는 결과를 버림 (finish는 숨김 감지 리스너를 풀려고만 부름)
@@ -139,6 +140,7 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
   function report(r) {
     const initial = r.initialTilesPending ? `재생 끝까지 미완료(> ${r.totalMs}ms)` : `${r.initialTilesLoadedMs}ms`;
     console.log(`[bench] ${fileName(r)}  initialTilesLoaded ${initial}`);
+    console.log("[bench] 전송", r.env.transfer);
     console.table(
       r.segments.map((s) => ({
         구간: s.name,
@@ -174,6 +176,20 @@ export async function mountBenchPanel({ adapter, region, pathUrl }) {
   panel.append(status);
   await afterFrames();
   guard();
+}
+
+/**
+ * 그 주소를 받을 때 서버가 실제로 고른 압축 방식. Cesium이 보낸 요청의 응답 헤더는 JS에서 못 읽어서
+ * 재생이 끝난 뒤 같은 주소로 HEAD를 한 번 보냄(측정 시간에는 안 들어감). 브라우저가 붙이는 Accept-Encoding은 같음
+ */
+async function probeEncoding(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { method: "HEAD", cache: "no-store" });
+    return res.headers.get("content-encoding") ?? "identity";
+  } catch {
+    return null;
+  }
 }
 
 const fileName = (r) => `${r.renderer}_${r.region}_${r.kind}_${r.n}.json`;

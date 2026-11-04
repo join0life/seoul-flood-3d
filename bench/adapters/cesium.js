@@ -103,6 +103,7 @@ export function createCesiumAdapter(viewer, tilesetUrl) {
       const { canvas } = viewer;
       return {
         renderer: "cesium",
+        tilesetUrl: new URL(tilesetUrl, location.href).href, // 전송 기록(recorder)이 이 폴더 아래 요청만 셈
         version: Cesium.VERSION,
         canvas: {
           cssWidth: canvas.clientWidth,

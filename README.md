@@ -237,14 +237,21 @@ cd renderer && npm install && npm run dev
 - 경로 지점 정하기: 평소 화면(바탕 지도 켜짐)에서 카메라를 맞추고 "현재 카메라 값 복사" → `path.json`에 붙여 넣기
 
 ```bash
-python -m http.server 8080      # 루트에서
-# http://localhost:8080/viewer/cesium-check.html?bench=1
+node bench/compress-tiles.mjs   # 루트에서. data/tiles/**의 .glb·.json 옆에 .br·.gz를 미리 만듦(원본 그대로, 타일러를 다시 돌린 뒤에만)
+node bench/serve.mjs            # http://localhost:8080/viewer/cesium-check.html?bench=1
 ```
+
+- `bench/serve.mjs`는 `python -m http.server 8080`과 포트·경로가 같고, 바뀌는 건 압축뿐입니다. 요청의 `Accept-Encoding`을 보고 미리 만든 `.br` → `.gz` → 원본 순으로 골라 `Content-Encoding`을 붙여 보냅니다.
+  - 요청마다 압축하지 않는 이유: 압축하는 CPU 시간이 측정에 섞이기 때문입니다.
+  - python과 같게 맞춘 것: 요청마다 연결을 새로 맺음(`Connection: close`, python은 HTTP/1.0), `Last-Modified`·`If-Modified-Since` → 304, `.glb`의 `Content-Type`(`application/octet-stream`).
+- 결과 JSON `env.transfer`에 실제로 받은 압축 방식(`tileset.json` 응답의 `Content-Encoding`)과 재생 중 타일 요청 바이트(전송·압축 본문·원본, 압축돼서 온 요청 수)가 남습니다.
+- 주의: python 서버 때 받은 타일이 브라우저 HTTP 캐시에 남아 있으면, 파일 수정 시각이 같아 서버가 304로 답하고 브라우저는 압축 안 된 사본을 그대로 씁니다. 첫 방문은 "Disable cache"를 켜고 재므로 괜찮고, 결과 JSON `env.transfer.compressedRequests`가 0이면 압축 없이 받은 회차입니다.
+- 압축 전송으로 잰 결과는 `bench/results/cesium-br/<조건>/`에 둡니다. summarize 제목에는 `cesium-br/fast4g`처럼 `bench/results` 아래 경로가 조건으로 나옵니다.
 
 1. **첫 방문**: DevTools Network의 "Disable cache"를 켜고 새로고침 → 회차(1~3) 고르기 → 재생 → "JSON 다운로드"
 2. **재방문**: 새로고침 없이 같은 화면에서 재생 한 번 더 → "JSON 다운로드" (렌더러 메모리에 타일이 남은 상태)
 3. 1~2를 3번(회차 1·2·3) → 결과 파일 6개 `{renderer}_{region}_{first|revisit}_{n}.json`을 네트워크 조건(DevTools throttling) 폴더 `bench/results/<조건>/`로 옮기기 (예: 제한 없음은 `bench/results/localhost/`, Fast 4G는 `bench/results/fast4g/`). 결과 JSON에 조건 칸이 없어서 폴더 이름이 곧 조건 기록이고, `bench/results/` 바로 아래에 두면 summarize가 읽지 않습니다.
-4. `node bench/summarize.mjs bench/results/<조건>` → 그 조건의 묶음별 3회 평균 표. 제목에 폴더 이름을 조건으로 표시합니다. 경로가 다른 결과가 섞이면 멈추고, 구간 끝 카메라가 회차끼리 얼마나 다른지(m)도 같이 출력합니다.
+4. `node bench/summarize.mjs bench/results/<조건>` → 그 조건의 묶음별 3회 평균 표. 제목에 `bench/results` 아래 폴더 경로를 조건으로 표시합니다. 경로가 다른 결과가 섞이면 멈추고, 구간 끝 카메라가 회차끼리 얼마나 다른지(m)도 같이 출력합니다.
 
 재생 중 탭 전환·창 가림으로 브라우저가 렌더를 멈추면 그 회차는 렌더러 성능이 아닙니다. 재생 중 화면이 숨거나(`visibilitychange`) 1초 넘는 프레임 간격이 있으면 결과 JSON에 `valid: false`와 사유를 남기고, summarize는 그 파일을 평균에서 빼고 경고합니다. 그 회차는 다시 잽니다.
 
