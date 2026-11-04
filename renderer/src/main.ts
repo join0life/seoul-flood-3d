@@ -27,7 +27,9 @@ if (BENCH) {
 }
 
 const renderer = new CityRenderer(container);
-// 개발 서버가 이 모듈을 갈아끼울 때 이전 렌더러의 GPU 자원·리스너를 정리
+// 지금은 어느 모듈도 hot.accept를 안 해서 저장하면 페이지 전체가 새로고침되고, 이 콜백은 불리지 않음.
+// 나중에 accept를 넣어 모듈만 갈아끼우게 되면 그때 이전 렌더러의 GPU 자원·리스너를 정리하려고 둠.
+// dispose 확인은 콘솔에서 renderer.dispose() → renderer.renderer.info.memory
 import.meta.hot?.dispose(() => renderer.dispose());
 const adapter = createThreeAdapter(renderer);
 Object.assign(window, { renderer, bench: adapter }); // 콘솔 확인용
