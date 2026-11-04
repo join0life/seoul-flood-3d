@@ -5,7 +5,8 @@
 // 압축 수준: brotli 11·gzip 9 (최대). 한 번 만들어 두고 계속 쓰니 만드는 시간보다 크기가 중요
 // 원본이 압축 파일보다 새로우면 다시 만듦 (타일러를 다시 돌린 경우)
 
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -45,9 +46,11 @@ let gz = 0;
 const t0 = performance.now();
 
 // zlib의 비동기 압축은 libuv 스레드에서 돌아감 → 코어 수만큼 동시에
+// 파일 읽기·쓰기도 비동기: 동기(readFileSync)면 그동안 이벤트 루프가 멈춰 다른 워커가 압축을 맡기지 못함
 async function compress(file) {
-  const src = readFileSync(file);
+  const src = await readFile(file);
   raw += src.length;
+  // .br·.gz 둘 다 최신일 때만 건너뜀. 한쪽만 낡았거나 지워졌으면 둘 다 다시 만듦(한쪽만 만드는 분기를 두지 않으려고)
   if (fresh(file, file + ".br") && fresh(file, file + ".gz")) {
     skipped++;
     br += statSync(file + ".br").size;
@@ -67,8 +70,7 @@ async function compress(file) {
     }),
     gzip(src, { level: 9 }),
   ]);
-  writeFileSync(file + ".br", b);
-  writeFileSync(file + ".gz", g);
+  await Promise.all([writeFile(file + ".br", b), writeFile(file + ".gz", g)]);
   br += b.length;
   gz += g.length;
   if (++done % 100 === 0) console.log(`  ${done}/${files.length - skipped}…`);

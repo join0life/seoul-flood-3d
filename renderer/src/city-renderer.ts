@@ -12,6 +12,7 @@ import {
   Mesh,
   PerspectiveCamera,
   Scene,
+  Texture,
   Vector3,
   WebGLRenderer,
 } from "three";
@@ -138,8 +139,14 @@ export class CityRenderer {
     this.scene.traverse((o) => {
       if (!(o instanceof Mesh)) return;
       o.geometry.dispose();
-      for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        // 텍스처는 머티리얼 dispose로 같이 안 풀림. 지금 건물엔 없지만 map 등이 붙으면 GPU에 남음
+        for (const v of Object.values(m)) if (v instanceof Texture) v.dispose();
+        m.dispose();
+      }
     });
+    // GPU 자원만 풀면 scene이 타일 객체를 계속 잡고 있음 → JS 메모리도 놓아줌
+    this.scene.clear();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

@@ -39,6 +39,7 @@ function stat(p) {
 }
 
 /** Accept-Encoding을 보고 보낼 파일을 고름: br → gzip → 원본. 원본 stat은 핸들러가 이미 읽은 것을 받음 */
+// mtime 비교라 같은 초 안의 변경·mtime 미보존 복사는 못 잡음. 타일을 다시 만들면 compress-tiles.mjs를 다시 실행
 function pick(file, src, acceptEncoding) {
   // "gzip, br;q=0.5, *;q=0" → { gzip: 1, br: 0.5, "*": 0 }. q=0은 "받지 않음"
   const q = {};
@@ -60,6 +61,7 @@ function pick(file, src, acceptEncoding) {
 
 createServer((req, res) => {
   res.setHeader("Connection", "close");
+  // 405가 아니라 501: python도 501(Unsupported method). 이 서버는 어느 경로에서도 GET·HEAD만 지원 → RFC 9110상 501
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(501).end();
     return;

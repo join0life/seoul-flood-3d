@@ -244,6 +244,7 @@ node bench/serve.mjs            # http://localhost:8080/viewer/cesium-check.html
 - `bench/serve.mjs`는 `python -m http.server 8080`과 포트·경로가 같고, 바뀌는 건 압축뿐입니다. 요청의 `Accept-Encoding`을 보고 미리 만든 `.br` → `.gz` → 원본 순으로 골라 `Content-Encoding`을 붙여 보냅니다.
   - 요청마다 압축하지 않는 이유: 압축하는 CPU 시간이 측정에 섞이기 때문입니다.
   - python과 같게 맞춘 것: 요청마다 연결을 새로 맺음(`Connection: close`, python은 HTTP/1.0), `Last-Modified`·`If-Modified-Since` → 304, `.glb`의 `Content-Type`(`application/octet-stream`).
+- 압축 파일이 최신인지는 원본과 수정 시각(mtime)만 비교합니다. 같은 초 안의 변경·mtime 미보존 복사는 못 잡으므로, 타일을 다시 만들면 `compress-tiles.mjs`를 다시 실행합니다.
 - 결과 JSON `env.transfer`에 실제로 받은 압축 방식(`tileset.json` 응답의 `Content-Encoding`)과 재생 중 타일 요청 바이트(전송·압축 본문·원본, 압축돼서 온 요청 수)가 남습니다.
 - 주의: python 서버 때 받은 타일이 브라우저 HTTP 캐시에 남아 있으면, 파일 수정 시각이 같아 서버가 304로 답하고 브라우저는 압축 안 된 사본을 그대로 씁니다. 첫 방문은 "Disable cache"를 켜고 재므로 괜찮고, 결과 JSON `env.transfer.compressedRequests`가 0이면 압축 없이 받은 회차입니다.
 - 압축 전송으로 잰 결과는 `bench/results/cesium-br/<조건>/`에 둡니다. summarize 제목에는 `cesium-br/fast4g`처럼 `bench/results` 아래 경로가 조건으로 나옵니다.

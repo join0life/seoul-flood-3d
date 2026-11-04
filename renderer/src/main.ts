@@ -39,6 +39,8 @@ function pointAt(name: string | null): CameraPoint {
     if ("to" in s && s.to) at = s.to as CameraPoint;
     if (s.name === name) return at;
   }
+  // ?at= 오타면 조용히 시작 지점으로 가서 놓치기 쉬움 → 알려줌
+  if (name !== null) console.warn(`[renderer] ?at=${name}: path.json에 없는 구간 → 시작 지점으로`);
   return path.start as CameraPoint;
 }
 const at = params.get("at");
