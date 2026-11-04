@@ -9,6 +9,7 @@
 //   - Last-Modified + If-Modified-Since → 304: python과 같은 캐시 동작(재방문 조건 유지)
 //   - Content-Type: python mimetypes와 같은 값(.glb는 python처럼 application/octet-stream)
 // 다른 점: 127.0.0.1에만 열림(python 기본은 0.0.0.0 → 같은 와이파이의 다른 기기에서도 data/가 보임)
+//          디렉터리 목록 없음: 폴더 요청에 index.html이 없으면 404(python은 파일 목록 HTML). 측정 경로는 파일만 요청함
 
 import { createReadStream, statSync } from "node:fs";
 import { createServer } from "node:http";
@@ -37,8 +38,8 @@ function stat(p) {
   }
 }
 
-/** Accept-Encoding을 보고 보낼 파일을 고름: br → gzip → 원본 */
-function pick(file, acceptEncoding) {
+/** Accept-Encoding을 보고 보낼 파일을 고름: br → gzip → 원본. 원본 stat은 핸들러가 이미 읽은 것을 받음 */
+function pick(file, src, acceptEncoding) {
   // "gzip, br;q=0.5, *;q=0" → { gzip: 1, br: 0.5, "*": 0 }. q=0은 "받지 않음"
   const q = {};
   for (const part of acceptEncoding.split(",")) {
@@ -52,9 +53,9 @@ function pick(file, acceptEncoding) {
     if (!accepts(enc)) continue;
     const s = stat(file + ext);
     // 원본보다 오래된 압축 파일은 내용이 다를 수 있어서 안 씀 → 압축 스크립트를 다시 돌릴 것
-    if (s?.isFile() && s.mtimeMs >= stat(file).mtimeMs) return { path: file + ext, size: s.size, encoding: enc };
+    if (s?.isFile() && s.mtimeMs >= src.mtimeMs) return { path: file + ext, size: s.size, encoding: enc };
   }
-  return { path: file, size: stat(file).size, encoding: null };
+  return { path: file, size: src.size, encoding: null };
 }
 
 createServer((req, res) => {
@@ -89,7 +90,7 @@ createServer((req, res) => {
     return;
   }
 
-  const chosen = pick(file, req.headers["accept-encoding"] ?? "");
+  const chosen = pick(file, s, req.headers["accept-encoding"] ?? "");
   const headers = {
     "Content-Type": TYPES[extname(file).toLowerCase()] ?? "application/octet-stream",
     "Content-Length": chosen.size,
