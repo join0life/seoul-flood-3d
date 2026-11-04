@@ -321,8 +321,9 @@ CesiumJS 1.146, 서울 타일셋, `bench/path.json` 고정 경로, 캔버스 168
 | --- | --- | --- | --- |
 | Fast 4G | 첫 화면 (initialTilesLoaded) | 8,052ms | 1,780ms |
 | Fast 4G | 구간 끝 대기 요청 (zoom / alley) | 11 / 14 | 8 / 0 |
-| Fast 4G | 받은 타일 메모리 (많을수록 화면이 채워짐) | 14.5MB | 76MB |
 | Fast 4G | 받은 바이트 / 원본 | 기록 없음 | 17.98MB / 78.38MB |
+| Fast 4G | 불러온 타일 (overview / zoom / alley / return) | 0 / 1 / 2 / 1 | 1 / 4.3 / 46.7 / 8 |
+| Fast 4G | 받은 타일 메모리 (많을수록 화면이 채워짐) | 14.5MB | 76MB |
 | No throttling | 첫 화면 (initialTilesLoaded) | 213ms | 192ms |
 | No throttling | 한 프레임 작업 평균 (overview / zoom / alley / return) | 1.07 / 0.86 / 1.08 / 0.79ms | 1.04 / 0.92 / 1.2 / 0.82ms |
 | No throttling | 불러온 타일 (overview / zoom / alley / return) | 1 / 24 / 33 / 6 | 1 / 24 / 33 / 6 |
