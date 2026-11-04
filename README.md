@@ -313,6 +313,26 @@ node bench/serve.mjs            # http://localhost:8080/viewer/cesium-check.html
 
 - 파일을 실제로 압축해서 잰 크기입니다. 압축했을 때 첫 화면 시간은 측정으로 확인합니다(1-5).
 
+### 7.6 1-5 압축 전송 결과
+
+CesiumJS 1.146, 서울 타일셋, `bench/path.json` 고정 경로, 캔버스 1680×928·pixelRatio 1, Disable cache, 첫 방문 각 3회 평균. 개선 전은 python `http.server`(무압축, `bench/results/fast4g`·`localhost`), 개선 후는 `bench/serve.mjs`(brotli, `bench/results/cesium-br/`). 값은 `bench/summarize.mjs` 출력 그대로입니다.
+
+| 조건 | 지표 | 개선 전 (1-2, 무압축) | 개선 후 (1-5, brotli) |
+| --- | --- | --- | --- |
+| Fast 4G | 첫 화면 (initialTilesLoaded) | 8,052ms | 1,780ms |
+| Fast 4G | 구간 끝 대기 요청 (zoom / alley) | 11 / 14 | 8 / 0 |
+| Fast 4G | 경로 끝 타일 메모리 | 14.5MB | 76MB |
+| Fast 4G | 받은 바이트 / 원본 | 기록 없음 | 17.98MB / 78.38MB |
+| No throttling | 첫 화면 (initialTilesLoaded) | 213ms | 192ms |
+| No throttling | 한 프레임 작업 평균 (overview / zoom / alley / return) | 1.07 / 0.86 / 1.08 / 0.79ms | 1.04 / 0.92 / 1.2 / 0.82ms |
+| No throttling | 불러온 타일 (overview / zoom / alley / return) | 1 / 24 / 33 / 6 | 1 / 24 / 33 / 6 |
+| No throttling | 경로 끝 타일 메모리 | 88.9MB | 88.9MB |
+
+- 원인: Fast 4G 첫 화면 시간의 약 90%가 압축 없는 전송이었습니다(7.5절).
+- No throttling에서 압축 해제로 인한 저하는 없었습니다.
+- 남은 것: zoom 구간 대기 요청 8개 → [issue #8](https://github.com/join0life/seoul-flood-3d/issues/8)
+- 배포 요구사항: [issue #9](https://github.com/join0life/seoul-flood-3d/issues/9) 참고
+
 ## 8. 주요 기능
 
 ### 건물 스트리밍
