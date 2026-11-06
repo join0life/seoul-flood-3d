@@ -19,19 +19,22 @@ export const PROP = {
   heightSource: "heightSource",
 };
 for (const name of Object.values(PROP))
-  if (!SCHEMA_PROPS[name]) throw new Error(`schema/building.json에 ${name} 속성이 없음`);
+  if (!SCHEMA_PROPS[name])
+    throw new Error(`schema/building.json에 ${name} 속성이 없음`);
 
 /** floodYears 자리 번호 = 연도 - 2010 (schema 설명 그대로). UINT16이라 2010~2025 */
 const FLOOD_BASE_YEAR = 2010;
 export const YEARS = [2022, 2025];
 
 const v = (name) => `\${${name}}`;
-const hasFloodBit = (year) => `(floor(${v(PROP.floodYears)} / ${2 ** (year - FLOOD_BASE_YEAR)}) % 2 === 1)`;
+const hasFloodBit = (year) =>
+  `(floor(${v(PROP.floodYears)} / ${2 ** (year - FLOOD_BASE_YEAR)}) % 2 === 1)`;
 
 /** 조건은 여기 한 곳에만. 레이어는 이 이름을 골라 씀 */
 const CONDITIONS = {
   // 선택한 연도 중 하나라도 침수. 연도를 하나도 안 고르면 거짓 → 두 레이어 모두 안 칠함
-  flood: (years) => (years.length ? years.map(hasFloodBit).join(" || ") : "false"),
+  flood: (years) =>
+    years.length ? years.map(hasFloodBit).join(" || ") : "false",
   basement: () => `${v(PROP.ugrndFlr)} >= 1`,
   residential: () => `${v(PROP.isResidential)} === true`,
   // 높이 정보가 없는 건물(DEFAULT, 3.25m로 그림)은 후보에서 뺌. 메타데이터 ENUM은 이름 문자열로 옴
@@ -67,7 +70,10 @@ const BASE_COLOR = "#e5e7eb";
 // Cesium 조명은 시계(태양 방향)를 따르므로 시간대에 따라 조금 달라질 수 있음
 const LEGEND_BASE_COLOR = "#7d848c";
 
-export const DEFAULT_STATE = { layers: new Set(LAYERS.map((l) => l.id)), years: [2022] };
+export const DEFAULT_STATE = {
+  layers: new Set(LAYERS.map((l) => l.id)),
+  years: [2022],
+};
 
 /** @param {{ layers: Set<string>, years: number[] }} state */
 export function buildStyle(state) {
@@ -80,7 +86,9 @@ export function buildStyle(state) {
 }
 
 /** 후보 레이어의 조건 = 상세 패널 체크리스트 항목(이 순서대로) */
-export const CANDIDATE_CONDITIONS = LAYERS.find((l) => l.id === "candidate").when;
+export const CANDIDATE_CONDITIONS = LAYERS.find(
+  (l) => l.id === "candidate",
+).when;
 
 /**
  * 건물 하나 판정. 화면 색과 같은 조건식(CONDITIONS)을 Cesium.Expression으로 계산 → 색과 패널이 어긋날 수 없음
@@ -89,21 +97,37 @@ export const CANDIDATE_CONDITIONS = LAYERS.find((l) => l.id === "candidate").whe
  */
 export function judge(feature, years) {
   const ids = new Set(LAYERS.flatMap((l) => l.when));
-  const checks = Object.fromEntries([...ids].map((c) => [c, new Cesium.Expression(CONDITIONS[c](years)).evaluate(feature) === true]));
+  const checks = Object.fromEntries(
+    [...ids].map((c) => [
+      c,
+      new Cesium.Expression(CONDITIONS[c](years)).evaluate(feature) === true,
+    ]),
+  );
   const layer = LAYERS.find((l) => l.when.every((c) => checks[c])) ?? null;
-  return { checks, layer, verdict: layer ? (layer.verdict ?? layer.label) : "해당 없음" };
+  return {
+    checks,
+    layer,
+    verdict: layer ? (layer.verdict ?? layer.label) : "해당 없음",
+  };
 }
 
 /** floodYears 비트 → 연도 목록 (자리 번호 = 연도 - 2010, UINT16) */
 export const floodYearList = (bits) =>
-  Array.from({ length: 16 }, (_, i) => FLOOD_BASE_YEAR + i).filter((y) => Math.floor(bits / 2 ** (y - FLOOD_BASE_YEAR)) % 2 === 1);
+  Array.from({ length: 16 }, (_, i) => FLOOD_BASE_YEAR + i).filter(
+    (y) => Math.floor(bits / 2 ** (y - FLOOD_BASE_YEAR)) % 2 === 1,
+  );
 
 const el = (tag, props = {}, ...children) => {
   const e = Object.assign(document.createElement(tag), props);
   e.append(...children);
   return e;
 };
-const swatch = (color) => el("span", { className: "swatch", ariaHidden: "true", style: `background:${color}` });
+const swatch = (color) =>
+  el("span", {
+    className: "swatch",
+    ariaHidden: "true",
+    style: `background:${color}`,
+  });
 
 /**
  * 레이어 패널: 연도(복수, 최소 1개) → 레이어 토글(LAYERS 순서, 색 견본 + 설명) → 범례(기타 건물)
@@ -112,18 +136,27 @@ const swatch = (color) => el("span", { className: "swatch", ariaHidden: "true", 
 export function mountLayerPanel(parent, state, onChange) {
   const hint = el("div", { className: "hint", role: "status" });
 
-  const years = el("fieldset", { className: "years" }, el("legend", {}, "연도"));
+  const years = el(
+    "fieldset",
+    { className: "years" },
+    el("legend", {}, "연도"),
+  );
   for (const y of YEARS) {
-    const box = el("input", { type: "checkbox", checked: state.years.includes(y) });
+    const box = el("input", {
+      type: "checkbox",
+      checked: state.years.includes(y),
+    });
     box.onchange = () => {
       // 연도를 다 끄면 칠할 침수가 없어 화면이 전부 회색 → 마지막 하나는 못 끄게 되돌림
       if (!box.checked && state.years.length === 1) {
         box.checked = true;
-        hint.textContent = "연도는 최소 1개를 선택해야 해요";
+        hint.textContent = " 연도는 최소 1개 이상 선택해 주세요.";
         return;
       }
       hint.textContent = "";
-      state.years = box.checked ? [...state.years, y].sort() : state.years.filter((x) => x !== y);
+      state.years = box.checked
+        ? [...state.years, y].sort()
+        : state.years.filter((x) => x !== y);
       onChange(state);
     };
     years.append(el("label", {}, box, ` ${y}`));
@@ -132,7 +165,11 @@ export function mountLayerPanel(parent, state, onChange) {
 
   const layers = el("fieldset", {}, el("legend", {}, "레이어"));
   for (const l of LAYERS) {
-    const box = el("input", { type: "checkbox", checked: state.layers.has(l.id), id: `layer-${l.id}` });
+    const box = el("input", {
+      type: "checkbox",
+      checked: state.layers.has(l.id),
+      id: `layer-${l.id}`,
+    });
     box.onchange = () => {
       box.checked ? state.layers.add(l.id) : state.layers.delete(l.id);
       onChange(state);
@@ -140,10 +177,22 @@ export function mountLayerPanel(parent, state, onChange) {
     // label 하나가 체크박스·견본·이름을 감쌈 → 어디를 눌러도 토글. 설명은 aria-describedby로 읽힘
     const desc = el("small", { id: `layer-${l.id}-desc` }, l.description);
     box.setAttribute("aria-describedby", desc.id);
-    layers.append(el("label", { className: "layer" }, box, swatch(l.color), l.label, desc));
+    layers.append(
+      el("label", { className: "layer" }, box, swatch(l.color), l.label, desc),
+    );
   }
 
   // 범례는 토글이 아님: 체크박스 자리는 비우고 견본을 레이어 견본과 같은 칸에 → 꺼진 체크박스로 안 보이게
   // 견본 색은 BASE_COLOR(흰색에 가까움)가 아니라 조명을 받은 뒤 화면에 보이는 회색(LEGEND_BASE_COLOR)
-  parent.append(years, layers, el("div", { className: "legend" }, el("span"), swatch(LEGEND_BASE_COLOR), "기타 건물 (항상 표시)"));
+  parent.append(
+    years,
+    layers,
+    el(
+      "div",
+      { className: "legend" },
+      el("span"),
+      swatch(LEGEND_BASE_COLOR),
+      "기타 건물 (항상 표시)",
+    ),
+  );
 }
