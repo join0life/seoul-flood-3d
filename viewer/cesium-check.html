@@ -36,7 +36,8 @@
         --card-focus: #fbbf24;
       }
       #layers,
-      #info.detail {
+      #info.detail,
+      #funnel {
         background: var(--card-bg);
         color: var(--card-text);
         color-scheme: dark; /* 체크박스를 어두운 바탕용으로 */
@@ -177,6 +178,63 @@
         border-top: 1px solid var(--card-line);
         padding-top: 8px;
       }
+      /* 2-4 하단 가운데 깔때기. 화면 아래 출처 표기(Cesium credits, 바닥에서 약 30px)보다 위 */
+      #funnel {
+        position: absolute;
+        left: 50%;
+        bottom: 44px;
+        transform: translateX(-50%);
+        padding: 10px 16px 8px;
+        border-radius: 8px;
+        font: 13px/1.4 system-ui, sans-serif;
+        text-align: center;
+      }
+      #funnel[hidden] {
+        display: none;
+      }
+      #funnel .title {
+        color: var(--card-sub);
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+      #funnel .steps {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+      }
+      #funnel .step {
+        min-width: 120px;
+      }
+      #funnel .label {
+        font-weight: 600;
+      }
+      #funnel .num {
+        font-size: 22px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      #funnel .num small {
+        font-size: 12px;
+        font-weight: 400;
+        margin-left: 2px;
+      }
+      #funnel .pct,
+      #funnel .note {
+        color: var(--card-sub);
+        font-size: 11px;
+      }
+      #funnel .arrow {
+        color: var(--card-dim);
+        font-size: 18px;
+        padding-top: 22px;
+      }
+      #funnel .source {
+        color: var(--card-sub);
+        font-size: 11px;
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid var(--card-line);
+      }
       #layers .hint {
         color: #fbbf24;
         font-size: 11px;
@@ -190,6 +248,7 @@
       <section id="layers" aria-label="레이어"></section>
       <div id="info">건물을 클릭하면 속성이 여기 나와요</div>
     </div>
+    <section id="funnel" aria-label="깔때기" aria-live="polite" hidden></section>
     <script type="module">
       // ?bench=1: 고정 경로 측정 화면(bench/). 없으면 평소 확인 화면 그대로
       const params = new URLSearchParams(location.search);
@@ -257,6 +316,8 @@
 
         // 2-3 건물 상세: 클릭한 건물이 왜 후보인지(아닌지). 빈 곳 클릭 → 닫기
         const info = document.getElementById("info");
+        info.className = "detail"; // 클릭 전 안내도 어두운 카드로(측정 화면의 흰 #info와 구분)
+        info.textContent = "건물을 클릭하면 후보 판정 근거가 여기 나와요";
         let selected = null;
 
         // 클릭한 건물 외곽선: 직접 만든 후처리 단계(PostProcessStage + czm_selected)
@@ -310,9 +371,15 @@
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
         // 연도·레이어를 바꾸면 색과 열린 상세를 같은 기준으로 다시
+        // 2-4 하단 깔때기(지역 전체 숫자, 타일러 s09의 funnel.json)
+        const { mountFunnel } = await import("./funnel.js");
+        const updateFunnel = await mountFunnel(document.getElementById("funnel"), `../data/tiles/${region}/funnel.json`);
+        updateFunnel(DEFAULT_STATE.years);
+
         mountLayerPanel(document.getElementById("layers"), DEFAULT_STATE, (s) => {
           tileset.style = buildStyle(s);
           showDetail();
+          updateFunnel(s.years);
         });
 
         await viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0, -0.5, 6000));
