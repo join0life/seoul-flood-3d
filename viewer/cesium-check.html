@@ -23,10 +23,18 @@
         width: 100%;
         height: 100%;
       }
-      #info {
+      /* 왼쪽 위 한 열: 레이어 패널(평소 화면만) → 클릭한 건물 속성. 아래 출처 표기(Cesium credits)는 안 가림 */
+      #side {
         position: absolute;
         top: 10px;
         left: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: calc(100% - 60px);
+        overflow: auto;
+      }
+      #info {
         background: #fff;
         padding: 8px 12px;
         font: 13px/1.5 monospace;
@@ -34,21 +42,70 @@
         border-radius: 6px;
         max-width: 420px;
       }
-      #layers:not(:empty) {
-        position: absolute;
-        top: 10px;
-        left: 450px;
+      /* 2-1·2-2 레이어 패널. 행은 viewer/layer-style.js가 LAYERS 목록으로 만듦 */
+      #layers:empty {
+        display: none;
+      }
+      #layers {
+        width: 260px;
         background: #fff;
-        padding: 8px 12px;
-        font: 13px/1.6 sans-serif;
-        border-radius: 6px;
+        color: #1f2937;
+        padding: 10px 12px;
+        font: 13px/1.4 system-ui, sans-serif;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+      }
+      #layers fieldset {
+        border: 0;
+        margin: 0 0 10px;
+        padding: 0;
+      }
+      #layers legend {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      #layers .years label {
+        margin-right: 12px;
+      }
+      #layers .layer {
+        display: grid;
+        grid-template-columns: auto 14px 1fr;
+        column-gap: 6px;
+        align-items: center;
+        margin: 4px 0;
+      }
+      #layers .layer small {
+        grid-column: 3;
+        color: #6b7280;
+        font-size: 11px;
+      }
+      #layers .swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        border: 1px solid rgb(0 0 0 / 0.25);
+      }
+      #layers .legend {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        color: #4b5563;
+        border-top: 1px solid #e5e7eb;
+        padding-top: 8px;
+      }
+      #layers .hint {
+        color: #b45309;
+        font-size: 11px;
+        min-height: 1em;
       }
     </style>
   </head>
   <body>
     <div id="map"></div>
-    <div id="info">건물을 클릭하면 속성이 여기 나와요</div>
-    <div id="layers"></div>
+    <div id="side">
+      <section id="layers" aria-label="레이어"></section>
+      <div id="info">건물을 클릭하면 속성이 여기 나와요</div>
+    </div>
     <script type="module">
       // ?bench=1: 고정 경로 측정 화면(bench/). 없으면 평소 확인 화면 그대로
       const params = new URLSearchParams(location.search);
@@ -110,9 +167,9 @@
         viewer.scene.primitives.add(tileset);
 
         // 2-1 레이어 색칠(침수 이력·현장 확인 후보). 측정 화면(?bench=1)에는 안 붙임 → 측정 조건 그대로
-        const { buildStyle, mountLayerControls, DEFAULT_STATE } = await import("./layer-style.js");
+        const { buildStyle, mountLayerPanel, DEFAULT_STATE } = await import("./layer-style.js");
         tileset.style = buildStyle(DEFAULT_STATE);
-        mountLayerControls(document.getElementById("layers"), DEFAULT_STATE, (s) => (tileset.style = buildStyle(s)));
+        mountLayerPanel(document.getElementById("layers"), DEFAULT_STATE, (s) => (tileset.style = buildStyle(s)));
 
         await viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0, -0.5, 6000));
 

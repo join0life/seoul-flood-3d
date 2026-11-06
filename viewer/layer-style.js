@@ -38,12 +38,30 @@ const CONDITIONS = {
   measuredHeight: () => `${v(PROP.heightSource)} !== 'DEFAULT'`,
 };
 
-/** 위에 있을수록 우선(켜진 레이어 중 먼저 맞는 색). 나머지는 BASE_COLOR */
+/**
+ * 위에 있을수록 우선(켜진 레이어 중 먼저 맞는 색). 나머지는 BASE_COLOR
+ * 패널 행도 이 목록으로 만듦 → 레이어를 하나 추가하면 색과 패널 행이 같이 생김
+ */
 export const LAYERS = [
-  { id: "candidate", label: "현장 확인 후보", when: ["flood", "basement", "residential", "measuredHeight"], color: "#ff8c1a" },
-  { id: "flood", label: "침수 이력", when: ["flood"], color: "#8ec5ff" },
+  {
+    id: "candidate",
+    label: "현장 확인 후보",
+    description: "침수 이력 중 지하층이 있는 주거 건물",
+    when: ["flood", "basement", "residential", "measuredHeight"],
+    color: "#ff8c1a",
+  },
+  {
+    id: "flood",
+    label: "침수 이력",
+    description: "선택한 연도 침수흔적에 닿은 건물",
+    when: ["flood"],
+    // 근거 레이어라 후보(주황)보다 약하게. 조명 뒤 화면 색 기준 회색과 ΔE 14.8, 채도는 주황의 약 36%
+    // (#8ec5ff는 중간 파랑으로 보였고, #bfd9f5는 회색과 ΔE 10.7로 너무 붙음. 관악 zoom에서 비교)
+    color: "#a9cbef",
+  },
 ];
-const BASE_COLOR = "#b4b4b4";
+// 기타 건물. Cesium 조명이 면 방향에 따라 어둡게 곱해서, 밝게 둬야 화면에서 연한 회색으로 보임
+const BASE_COLOR = "#e5e7eb";
 
 export const DEFAULT_STATE = { layers: new Set(LAYERS.map((l) => l.id)), years: [2022] };
 
@@ -57,23 +75,50 @@ export function buildStyle(state) {
   return new Cesium.Cesium3DTileStyle({ color: { conditions } });
 }
 
-/** 최소 UI: 레이어·연도 체크박스. 바뀔 때마다 onChange(새 상태) */
-export function mountLayerControls(parent, state, onChange) {
-  const row = (label, checked, toggle) => {
-    const l = document.createElement("label");
-    const c = document.createElement("input");
-    c.type = "checkbox";
-    c.checked = checked;
-    c.onchange = () => {
-      toggle(c.checked);
+const el = (tag, props = {}, ...children) => {
+  const e = Object.assign(document.createElement(tag), props);
+  e.append(...children);
+  return e;
+};
+const swatch = (color) => el("span", { className: "swatch", ariaHidden: "true", style: `background:${color}` });
+
+/**
+ * 레이어 패널: 연도(복수, 최소 1개) → 레이어 토글(LAYERS 순서, 색 견본 + 설명) → 범례(기타 건물)
+ * 진짜 <input type=checkbox> + <label>이라 Tab·Space로 조작됨. 바뀔 때마다 onChange(상태)
+ */
+export function mountLayerPanel(parent, state, onChange) {
+  const hint = el("div", { className: "hint", role: "status" });
+
+  const years = el("fieldset", { className: "years" }, el("legend", {}, "연도"));
+  for (const y of YEARS) {
+    const box = el("input", { type: "checkbox", checked: state.years.includes(y) });
+    box.onchange = () => {
+      // 연도를 다 끄면 칠할 침수가 없어 화면이 전부 회색 → 마지막 하나는 못 끄게 되돌림
+      if (!box.checked && state.years.length === 1) {
+        box.checked = true;
+        hint.textContent = "연도는 최소 1개를 선택해야 해요";
+        return;
+      }
+      hint.textContent = "";
+      state.years = box.checked ? [...state.years, y].sort() : state.years.filter((x) => x !== y);
       onChange(state);
     };
-    l.append(c, ` ${label}`);
-    parent.append(l, document.createElement("br"));
-  };
-  for (const l of LAYERS) row(l.label, state.layers.has(l.id), (on) => (on ? state.layers.add(l.id) : state.layers.delete(l.id)));
-  for (const y of YEARS)
-    row(`${y}년`, state.years.includes(y), (on) => {
-      state.years = on ? [...state.years, y].sort() : state.years.filter((x) => x !== y);
-    });
+    years.append(el("label", {}, box, ` ${y}`));
+  }
+  years.append(hint);
+
+  const layers = el("fieldset", {}, el("legend", {}, "레이어"));
+  for (const l of LAYERS) {
+    const box = el("input", { type: "checkbox", checked: state.layers.has(l.id), id: `layer-${l.id}` });
+    box.onchange = () => {
+      box.checked ? state.layers.add(l.id) : state.layers.delete(l.id);
+      onChange(state);
+    };
+    // label 하나가 체크박스·견본·이름을 감쌈 → 어디를 눌러도 토글. 설명은 aria-describedby로 읽힘
+    const desc = el("small", { id: `layer-${l.id}-desc` }, l.description);
+    box.setAttribute("aria-describedby", desc.id);
+    layers.append(el("label", { className: "layer" }, box, swatch(l.color), l.label, desc));
+  }
+
+  parent.append(years, layers, el("div", { className: "legend" }, swatch(BASE_COLOR), "기타 건물"));
 }
