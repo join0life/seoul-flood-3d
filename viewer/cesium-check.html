@@ -513,9 +513,12 @@
         // 고른 구(null = 지역 전체). 구 줄을 눌렀을 때만 바뀜 → 그 뒤 카메라를 움직여도 지표·선택은 그대로
         let district = null;
         const FLY_SECONDS = 1.5;
-        const HOME_HEADING = 0, HOME_PITCH = -0.5; // 처음 화면 방향·기울기(전과 같음)
-        // 지평선 쪽으로 눕힐수록 먼 모서리가 화면 위로 안 들어와서 맞춤 거리가 끝없이 커짐 → 최소 -20°로 제한
-        const MAX_PITCH = Cesium.Math.toRadians(-20);
+        // 처음 화면·Home 방향·기울기. 기울기 비교(맞춘 bbox 대비 보이는 범위, 동작 2022 가로): -28.65° 3.59배 → -45° 1.96 → -55° 1.64 → -65° 1.42
+        // -28.65°는 화면 위쪽에 먼 땅이 많이 들어와 멀어 보였음. -55° 다음부터는 덜 줄고 건물 옆면이 덜 보여서 -55°
+        const HOME_HEADING = 0, HOME_PITCH = Cesium.Math.toRadians(-55);
+        // 지평선 쪽으로 눕힐수록 먼 모서리가 화면 위로 들어와서 맞춤 거리가 커지고 범위 밖이 많이 보임 → 구를 누를 때 최소 -40°로 제한
+        // 기본 기울기(-55°)보다 가파른 쪽이라 처음 화면·Home에서 구를 눌러도 기울기가 안 바뀜
+        const MAX_PITCH = Cesium.Math.toRadians(-40);
         const NEAR_VERTICAL = Cesium.Math.toRadians(-89);
         const FIT_PITCH_LIMIT = Cesium.Math.toRadians(-89.9);
         const MIN_SIDE = 1000; // m. 후보 bbox가 이보다 작으면(후보 1건 등) 중심 그대로 1km × 1km로 넓혀서 맞춤
@@ -575,7 +578,7 @@
           const p = Math.max(-Cesium.Math.PI_OVER_TWO, pitch + (pitch - first.cam.pitch));
           return { center, offset: new Cesium.HeadingPitchRange(h, p, fitRange(center, corners, h, p).range) };
         };
-        // 지금 카메라의 방향·기울기를 그대로 씀(거리만 맞춤). 지평선 쪽(-20°보다 얕음)이면 -20°로
+        // 지금 카메라의 방향·기울기를 그대로 씀(거리만 맞춤). 지평선 쪽(-40°보다 얕음)이면 -40°로
         const currentAngles = () => [viewer.camera.heading, Math.min(viewer.camera.pitch, MAX_PITCH)];
         // angles를 주면 그 방향·기울기로(Home), 안 주면 지금 카메라 그대로(구 클릭)
         const flyToBbox = (bbox, angles = currentAngles()) => {
@@ -590,7 +593,7 @@
         const flyTo = (d, angles) => flyToBbox(d ? bboxFor(d) : seoulBbox, angles);
 
         // Home 버튼(오른쪽 위 집): Cesium 기본은 지구 전체로 감 → 막고, 지금 고른 범위(구 또는 서울 전체)에 다시 맞춤
-        // 방향·기울기만 처음 화면 값(0°, -0.5 rad = -28.65°)으로 되돌림. 맞춤·옆 이동은 구 클릭과 같은 flyToBbox
+        // 방향·기울기만 처음 화면 값(0°, -55°)으로 되돌림. 맞춤·옆 이동은 구 클릭과 같은 flyToBbox
         // 지표가 없는 지역(seoulBbox 없음)은 Cesium 기본 동작 그대로
         if (seoulBbox)
           viewer.homeButton.viewModel.command.beforeExecute.addEventListener((e) => {
@@ -625,7 +628,7 @@
           setTimeout(() => window.runToggleMeasure());
         }
 
-        // 처음 카메라 = "서울 전체" 줄과 같은 맞춤(서울 bbox, 방향 0·기울기 -0.5). 지표가 없는 지역은 전처럼 타일셋 전체
+        // 처음 카메라 = "서울 전체" 줄과 같은 맞춤(서울 bbox, 방향 0°·기울기 -55°). 지표가 없는 지역은 전처럼 타일셋 전체
         if (seoulBbox) {
           const { center, offset } = fitBbox(seoulBbox, HOME_HEADING, HOME_PITCH);
           viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(center, 1), { offset, duration: 0 });
