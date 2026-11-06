@@ -53,6 +53,7 @@ export const LAYERS = [
   {
     id: "flood",
     label: "침수 이력",
+    verdict: "침수 이력만 있음", // 상세 패널 판정 문구(없으면 label)
     description: "선택한 연도 침수흔적에 닿은 건물",
     when: ["flood"],
     // 근거 레이어라 후보(주황)보다 약하게. 조명 뒤 화면 색 기준 회색과 ΔE 14.8, 채도는 주황의 약 36%
@@ -74,6 +75,25 @@ export function buildStyle(state) {
   conditions.push(["true", `color('${BASE_COLOR}')`]);
   return new Cesium.Cesium3DTileStyle({ color: { conditions } });
 }
+
+/** 후보 레이어의 조건 = 상세 패널 체크리스트 항목(이 순서대로) */
+export const CANDIDATE_CONDITIONS = LAYERS.find((l) => l.id === "candidate").when;
+
+/**
+ * 건물 하나 판정. 화면 색과 같은 조건식(CONDITIONS)을 Cesium.Expression으로 계산 → 색과 패널이 어긋날 수 없음
+ * 레이어 ON/OFF와 상관없이 "선택 연도 기준으로 어느 레이어에 해당하나"(LAYERS 우선순위)
+ * @returns {{ checks: Record<string, boolean>, verdict: string, layer: object | null }}
+ */
+export function judge(feature, years) {
+  const ids = new Set(LAYERS.flatMap((l) => l.when));
+  const checks = Object.fromEntries([...ids].map((c) => [c, new Cesium.Expression(CONDITIONS[c](years)).evaluate(feature) === true]));
+  const layer = LAYERS.find((l) => l.when.every((c) => checks[c])) ?? null;
+  return { checks, layer, verdict: layer ? (layer.verdict ?? layer.label) : "해당 없음" };
+}
+
+/** floodYears 비트 → 연도 목록 (자리 번호 = 연도 - 2010, UINT16) */
+export const floodYearList = (bits) =>
+  Array.from({ length: 16 }, (_, i) => FLOOD_BASE_YEAR + i).filter((y) => Math.floor(bits / 2 ** (y - FLOOD_BASE_YEAR)) % 2 === 1);
 
 const el = (tag, props = {}, ...children) => {
   const e = Object.assign(document.createElement(tag), props);

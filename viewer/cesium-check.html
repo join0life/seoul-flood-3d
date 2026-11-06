@@ -42,6 +42,72 @@
         border-radius: 6px;
         max-width: 420px;
       }
+      /* 2-3 건물 상세(평소 화면). 측정 화면은 위 #info 그대로(날것 속성) */
+      #info.detail {
+        width: 260px;
+        font: 13px/1.5 system-ui, sans-serif;
+        white-space: normal;
+        color: #1f2937;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+      }
+      #info .verdict {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        font-weight: 600;
+        font-size: 15px;
+      }
+      #info .basis {
+        color: #6b7280;
+        font-size: 11px;
+        margin: 2px 0 6px;
+      }
+      #info .checks {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      #info .checks li {
+        margin: 3px 0;
+      }
+      #info .mark {
+        display: inline-block;
+        width: 1.2em;
+        font-weight: 700;
+      }
+      #info .ok .mark {
+        color: #15803d;
+      }
+      #info .no .mark {
+        color: #b91c1c;
+      }
+      #info .off {
+        color: #9ca3af;
+      }
+      #info dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 2px 10px;
+        margin: 8px 0 0;
+        padding-top: 6px;
+        border-top: 1px solid #e5e7eb;
+        color: #4b5563;
+        font-size: 12px;
+      }
+      #info dd {
+        margin: 0;
+        word-break: break-all;
+      }
+      #info .swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        border: 1px solid rgb(0 0 0 / 0.25);
+      }
+      #info[hidden] {
+        display: none;
+      }
       /* 2-1·2-2 레이어 패널. 행은 viewer/layer-style.js가 LAYERS 목록으로 만듦 */
       #layers:empty {
         display: none;
@@ -168,8 +234,54 @@
 
         // 2-1 레이어 색칠(침수 이력·현장 확인 후보). 측정 화면(?bench=1)에는 안 붙임 → 측정 조건 그대로
         const { buildStyle, mountLayerPanel, DEFAULT_STATE } = await import("./layer-style.js");
+        const { renderDetail } = await import("./building-detail.js");
         tileset.style = buildStyle(DEFAULT_STATE);
-        mountLayerPanel(document.getElementById("layers"), DEFAULT_STATE, (s) => (tileset.style = buildStyle(s)));
+
+        // 2-3 건물 상세: 클릭한 건물이 왜 후보인지(아닌지). 빈 곳 클릭 → 닫기
+        const info = document.getElementById("info");
+        let selected = null;
+
+        // 클릭한 건물 외곽선: Cesium 기본 silhouette 후처리(가장자리 검출 → 원래 화면에 합성)
+        // 판정 색은 그대로 두고 가장자리만 진한 남색. selected가 비면 외곽선 없음
+        // 단계는 켜둔 채 selected만 바꿈: 꺼둔 단계를 처음 켤 때 selected가 안 먹고 모든 건물에 외곽선이 생겼음
+        // (1.146, 확인 후 selected를 다시 넣으면 정상). 평소 화면만 매 프레임 가장자리 검출 비용이 듦
+        // 측정 화면(?bench=1)은 이 분기를 안 타서 후처리 자체가 없음
+        const PPL = Cesium.PostProcessStageLibrary;
+        let edge = null;
+        if (PPL.isSilhouetteSupported(viewer.scene)) {
+          edge = PPL.createEdgeDetectionStage();
+          edge.uniforms.color = Cesium.Color.fromCssColorString("#1e1b4b");
+          edge.uniforms.length = 0.5; // px. 기본값 그대로(얇게)
+          edge.selected = [];
+          viewer.scene.postProcessStages.add(PPL.createSilhouetteStage([edge]));
+        }
+        const outline = (f) => {
+          if (edge) edge.selected = f ? [f] : [];
+        };
+
+        const showDetail = () => {
+          if (!selected) return;
+          if (!renderDetail(info, selected, DEFAULT_STATE.years)) closeDetail(); // 타일이 내려가 못 읽음
+        };
+        const closeDetail = () => {
+          selected = null;
+          info.hidden = true;
+          outline(null);
+        };
+        viewer.screenSpaceEventHandler.setInputAction((e) => {
+          const f = viewer.scene.pick(e.position);
+          if (f instanceof Cesium.Cesium3DTileFeature) {
+            selected = f;
+            outline(f);
+            showDetail();
+          } else closeDetail();
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        // 연도·레이어를 바꾸면 색과 열린 상세를 같은 기준으로 다시
+        mountLayerPanel(document.getElementById("layers"), DEFAULT_STATE, (s) => {
+          tileset.style = buildStyle(s);
+          showDetail();
+        });
 
         await viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0, -0.5, 6000));
 
@@ -179,24 +291,26 @@
         mountCopyButton(() => getCesiumCamera(viewer));
       }
 
-      // 클릭한 건물의 속성 표시 = featureId → 속성표 연결 확인
-      const info = document.getElementById("info");
-      viewer.screenSpaceEventHandler.setInputAction((e) => {
-        const f = viewer.scene.pick(e.position);
-        if (!(f instanceof Cesium.Cesium3DTileFeature)) {
-          info.textContent = "건물이 아님";
-          return;
-        }
-        const lines = f
-          .getPropertyIds()
-          .map((id) => `${id}: ${f.getProperty(id)}`);
-        info.textContent = `featureId: ${f.featureId}\n` + lines.join("\n");
-        console.log(
-          Object.fromEntries(
-            f.getPropertyIds().map((id) => [id, f.getProperty(id)]),
-          ),
-        );
-      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+      // 측정 화면: 클릭한 건물의 속성을 날것으로 표시(featureId → 속성표 연결 확인용, 0-9 그대로)
+      if (BENCH) {
+        const info = document.getElementById("info");
+        viewer.screenSpaceEventHandler.setInputAction((e) => {
+          const f = viewer.scene.pick(e.position);
+          if (!(f instanceof Cesium.Cesium3DTileFeature)) {
+            info.textContent = "건물이 아님";
+            return;
+          }
+          const lines = f
+            .getPropertyIds()
+            .map((id) => `${id}: ${f.getProperty(id)}`);
+          info.textContent = `featureId: ${f.featureId}\n` + lines.join("\n");
+          console.log(
+            Object.fromEntries(
+              f.getPropertyIds().map((id) => [id, f.getProperty(id)]),
+            ),
+          );
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+      }
 
       window.viewer = viewer;
       window.tileset = tileset; // 콘솔에서 확인용
