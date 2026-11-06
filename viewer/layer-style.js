@@ -63,6 +63,9 @@ export const LAYERS = [
 ];
 // 기타 건물. Cesium 조명이 면 방향에 따라 어둡게 곱해서, 밝게 둬야 화면에서 연한 회색으로 보임
 const BASE_COLOR = "#e5e7eb";
+// 범례 견본 색 = 화면에서 기타 건물이 보이는 회색. 캔버스 픽셀 실측 중앙값(11/6, 관악 232점 rgb(125,132,140) · 동작 186점 rgb(126,133,137))
+// Cesium 조명은 시계(태양 방향)를 따르므로 시간대에 따라 조금 달라질 수 있음
+const LEGEND_BASE_COLOR = "#7d848c";
 
 export const DEFAULT_STATE = { layers: new Set(LAYERS.map((l) => l.id)), years: [2022] };
 
@@ -140,5 +143,7 @@ export function mountLayerPanel(parent, state, onChange) {
     layers.append(el("label", { className: "layer" }, box, swatch(l.color), l.label, desc));
   }
 
-  parent.append(years, layers, el("div", { className: "legend" }, swatch(BASE_COLOR), "기타 건물"));
+  // 범례는 토글이 아님: 체크박스 자리는 비우고 견본을 레이어 견본과 같은 칸에 → 꺼진 체크박스로 안 보이게
+  // 견본 색은 BASE_COLOR(흰색에 가까움)가 아니라 조명을 받은 뒤 화면에 보이는 회색(LEGEND_BASE_COLOR)
+  parent.append(years, layers, el("div", { className: "legend" }, el("span"), swatch(LEGEND_BASE_COLOR), "기타 건물 (항상 표시)"));
 }

@@ -12,6 +12,9 @@ SCHEMA = json.loads((ROOT / "schema/building.json").read_text(encoding="utf-8"))
 
 FLOOR_HEIGHT = 3.25                                   # 층당 높이 중앙값(m)
 HEIGHT_SOURCE = {"ORIGINAL": 0, "FROM_FLOORS": 1, "DEFAULT": 2}
+# fgb에만 있고 타일(GLB)에는 안 들어가는 칸. GLB 속성표는 schema/building.json만 씀(Node glb.ts)
+# sigungu = A23 시군구 코드 → s09가 구별 깔때기를 셈
+FGB_ONLY = ["sigungu"]
 
 
 def to_int(s):
@@ -20,8 +23,8 @@ def to_int(s):
 
 
 def check_schema(df):
-    """schema/building.json에 적힌 칸과 정확히 같은지 검사"""
-    expected = set(SCHEMA["classes"]["building"]["properties"])
+    """schema/building.json에 적힌 칸 + FGB_ONLY와 정확히 같은지 검사"""
+    expected = set(SCHEMA["classes"]["building"]["properties"]) | set(FGB_ONLY)
     actual = set(df.columns) - {"geometry"}
     if expected != actual:
         raise ValueError(f"schema 불일치 · 빠진 칸 {expected - actual} · 남는 칸 {actual - expected}")
@@ -51,6 +54,8 @@ def main():
     out["heightSource"] = np.select(
         [has_h, has_f], [HEIGHT_SOURCE["ORIGINAL"], HEIGHT_SOURCE["FROM_FLOORS"]], HEIGHT_SOURCE["DEFAULT"]
     ).astype("uint8")
+
+    out["sigungu"] = b["A23"].astype(str)   # FGB_ONLY
 
     check_schema(out)
 
