@@ -1,5 +1,6 @@
 // 측정용 정적 서버. python -m http.server 8080 대신 씀 (루트에서 실행, 포트·경로 같음)
-// 실행: node bench/serve.mjs [포트=8080]   (라이브러리 없음, Node 내장 모듈만)
+// 실행: node bench/serve.mjs [포트=8080] [--no-compress]   (라이브러리 없음, Node 내장 모듈만)
+//   --no-compress: .br/.gz가 있어도 원본만 보냄(압축 끈 상태를 같은 서버로 비교. python 서버와 나머지 동작은 같음)
 //
 // python http.server와 다른 건 압축 여부 하나만 되게 맞춤:
 //   - 미리 만든 파일.br / 파일.gz가 있으면 Accept-Encoding을 보고 br → gzip → 원본 순으로 골라 보냄
@@ -17,7 +18,9 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
-const PORT = Number(process.argv[2] ?? 8080);
+const args = process.argv.slice(2);
+const NO_COMPRESS = args.includes("--no-compress");
+const PORT = Number(args.find((a) => !a.startsWith("--")) ?? 8080);
 
 const TYPES = {
   ".html": "text/html",
@@ -92,7 +95,8 @@ createServer((req, res) => {
     return;
   }
 
-  const chosen = pick(file, s, req.headers["accept-encoding"] ?? "");
+  // --no-compress면 브라우저가 br을 받겠다고 해도 원본만 (Accept-Encoding을 빈 값으로 보고 고름)
+  const chosen = pick(file, s, NO_COMPRESS ? "" : (req.headers["accept-encoding"] ?? ""));
   const headers = {
     "Content-Type": TYPES[extname(file).toLowerCase()] ?? "application/octet-stream",
     "Content-Length": chosen.size,
@@ -105,5 +109,6 @@ createServer((req, res) => {
   if (req.method === "HEAD") res.end();
   else createReadStream(chosen.path).pipe(res);
 }).listen(PORT, "127.0.0.1", () => {
-  console.log(`http://localhost:${PORT}/  (루트: ${ROOT}, 미리 압축한 .br/.gz 있으면 사용)`);
+  const mode = NO_COMPRESS ? "압축 끔: 원본만 전송" : "미리 압축한 .br/.gz 있으면 사용";
+  console.log(`http://localhost:${PORT}/  (루트: ${ROOT}, ${mode})`);
 });

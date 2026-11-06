@@ -84,6 +84,12 @@ export function createCesiumAdapter(viewer, tilesetUrl) {
       return scene.postRender.addEventListener(() => cb(performance.now() - workStart));
     },
 
+    /**
+     * 캔버스를 PNG data URL로. onFrame 콜백(= scene.postRender) 안에서만 부를 것:
+     * WebGL은 화면에 내보낸 뒤 그리기 버퍼를 비울 수 있어서(preserveDrawingBuffer: false) 그린 직후가 아니면 빈 그림
+     */
+    captureNow: () => viewer.canvas.toDataURL("image/png"),
+
     setInputEnabled(on) {
       scene.screenSpaceCameraController.enableInputs = on;
     },

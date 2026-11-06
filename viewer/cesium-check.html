@@ -80,7 +80,17 @@
         if (pathUrl.origin !== location.origin || !pathUrl.pathname.endsWith(".json"))
           throw new Error(`?path=는 같은 서버의 .json만 가능: ${pathUrl}`);
         const adapter = createCesiumAdapter(viewer, tilesetUrl);
-        await mountBenchPanel({ adapter, region, pathUrl });
+        // ?captureAt=3000: 재생 시작 후 3000ms 화면을 PNG로 저장 (양수 ms만)
+        const captureAt = Number(params.get("captureAt"));
+        // ?bg=white: 캡처 그림의 배경색(CSS 색). 검은 배경은 인쇄하면 건물과 구분이 안 됨
+        // 캡처 회차(invalid, 평균에서 빠짐)에서만 적용 → 측정 회차의 장면 조건은 그대로
+        const bg = params.get("bg");
+        if (bg) {
+          const color = captureAt > 0 ? Cesium.Color.fromCssColorString(bg) : undefined;
+          if (color) viewer.scene.backgroundColor = color;
+          else console.warn(`[bench] ?bg=${bg} 무시: ${captureAt > 0 ? "CSS 색이 아님" : "?captureAt과 같이 쓸 때만 적용"}`);
+        }
+        await mountBenchPanel({ adapter, region, pathUrl, captureAt: captureAt > 0 ? captureAt : null });
         window.bench = adapter; // 콘솔 확인용 (bench.tileset)
       } else {
         // 타일 개수·LOD를 보는 검사 패널 (오른쪽 위)

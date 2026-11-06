@@ -30,10 +30,10 @@ for (const t of tiles) {
 }
 
 console.log(
-  `건물 ${buildings.length.toLocaleString()}동 읽음 · 타일 ${tiles.length}개 · 타일당 최대 ${MAX_PER_TILE}동`,
+  `건물 ${buildings.length.toLocaleString()}건 읽음 · 타일 ${tiles.length}개 · 타일당 최대 ${MAX_PER_TILE}건`,
 );
 console.log(
-  `타일에 들어간 건물 합계 ${total.toLocaleString()}동 ${total === buildings.length ? "(중복·누락 없음)" : "(개수 불일치!)"}`,
+  `타일에 들어간 건물 합계 ${total.toLocaleString()}건 ${total === buildings.length ? "(중복·누락 없음)" : "(개수 불일치!)"}`,
 );
 console.log("레벨 | 타일 | 건물 | geometricError 최대(m)");
 for (const [lv, v] of [...byLevel].sort((a, b) => a[0] - b[0])) {

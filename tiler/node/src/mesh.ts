@@ -14,10 +14,10 @@ export interface TileMesh {
 }
 
 export function buildTileMesh(tile: TileNode): TileMesh {
-  // featureIds가 Uint16이라 65,536동이 넘으면 번호가 넘쳐 다른 건물과 겹침. 지금은 MAX_PER_TILE(1000)이 막지만
+  // featureIds가 Uint16이라 65,536건이 넘으면 번호가 넘쳐 다른 건물과 겹침. 지금은 MAX_PER_TILE(1000)이 막지만
   // 그 값을 올릴 때 조용히 깨지지 않게 여기서 멈춤
   if (tile.buildings.length > 65536)
-    throw new Error(`타일 ${tile.id}: 건물 ${tile.buildings.length}동 > 65,536 (featureIds Uint16 한도)`);
+    throw new Error(`타일 ${tile.id}: 건물 ${tile.buildings.length}건 > 65,536 (featureIds Uint16 한도)`);
   const [w, s, e, n] = tile.region;
   const enu = enuAt((w + e) / 2, (s + n) / 2);
   const pos: number[] = [],
