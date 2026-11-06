@@ -618,6 +618,13 @@
           refresh();
         });
 
+        // 2-6 토글 반응 시간 측정: ?measure=1일 때만 불러서 자동으로 한 번 돌림. 콘솔에서 await runToggleMeasure()로 다시
+        if (params.get("measure") === "1") {
+          const { mountToggleMeasure } = await import("./toggle-measure.js");
+          window.runToggleMeasure = mountToggleMeasure({ viewer, tileset, layersEl: document.getElementById("layers") });
+          setTimeout(() => window.runToggleMeasure());
+        }
+
         // 처음 카메라 = "서울 전체" 줄과 같은 맞춤(서울 bbox, 방향 0·기울기 -0.5). 지표가 없는 지역은 전처럼 타일셋 전체
         if (seoulBbox) {
           const { center, offset } = fitBbox(seoulBbox, HOME_HEADING, HOME_PITCH);
