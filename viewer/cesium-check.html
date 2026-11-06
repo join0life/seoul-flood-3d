@@ -24,6 +24,29 @@
         height: 100%;
       }
       /* 왼쪽 위 한 열: 레이어 패널(평소 화면만) → 클릭한 건물 속성. 아래 출처 표기(Cesium credits)는 안 가림 */
+      /* 평소 화면 카드(레이어 패널·건물 상세): 어두운 반투명. 글자 대비는 카드 뒤가 흰 지도일 때(가장 불리) 기준
+         배경 실효색 #2c3344 → 본문 #f1f5f9 11.6:1, 보조 #cbd5e1 8.5:1, 흐린 연도 #94a3b8 4.9:1,
+         ✓ #4ade80 7.3:1, ✗ #f87171 4.6:1, 안내·포커스 #fbbf24 7.6:1 (WCAG AA 4.5:1 이상) */
+      :root {
+        --card-bg: rgb(15 23 42 / 0.88);
+        --card-text: #f1f5f9;
+        --card-sub: #cbd5e1;
+        --card-dim: #94a3b8;
+        --card-line: rgb(255 255 255 / 0.15);
+        --card-focus: #fbbf24;
+      }
+      #layers,
+      #info.detail {
+        background: var(--card-bg);
+        color: var(--card-text);
+        color-scheme: dark; /* 체크박스를 어두운 바탕용으로 */
+        accent-color: #f1f5f9;
+        box-shadow: 0 1px 6px rgb(0 0 0 / 0.35);
+      }
+      #layers :focus-visible {
+        outline: 2px solid var(--card-focus);
+        outline-offset: 2px;
+      }
       #side {
         position: absolute;
         top: 10px;
@@ -47,9 +70,7 @@
         width: 260px;
         font: 13px/1.5 system-ui, sans-serif;
         white-space: normal;
-        color: #1f2937;
         border-radius: 8px;
-        box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
       }
       #info .verdict {
         display: flex;
@@ -59,7 +80,7 @@
         font-size: 15px;
       }
       #info .basis {
-        color: #6b7280;
+        color: var(--card-sub);
         font-size: 11px;
         margin: 2px 0 6px;
       }
@@ -77,13 +98,13 @@
         font-weight: 700;
       }
       #info .ok .mark {
-        color: #15803d;
+        color: #4ade80;
       }
       #info .no .mark {
-        color: #b91c1c;
+        color: #f87171;
       }
       #info .off {
-        color: #9ca3af;
+        color: var(--card-dim);
       }
       #info dl {
         display: grid;
@@ -91,8 +112,8 @@
         gap: 2px 10px;
         margin: 8px 0 0;
         padding-top: 6px;
-        border-top: 1px solid #e5e7eb;
-        color: #4b5563;
+        border-top: 1px solid var(--card-line);
+        color: var(--card-sub);
         font-size: 12px;
       }
       #info dd {
@@ -103,7 +124,7 @@
         width: 14px;
         height: 14px;
         border-radius: 3px;
-        border: 1px solid rgb(0 0 0 / 0.25);
+        border: 1px solid rgb(255 255 255 / 0.5);
       }
       #info[hidden] {
         display: none;
@@ -114,12 +135,9 @@
       }
       #layers {
         width: 260px;
-        background: #fff;
-        color: #1f2937;
         padding: 10px 12px;
         font: 13px/1.4 system-ui, sans-serif;
         border-radius: 8px;
-        box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
       }
       #layers fieldset {
         border: 0;
@@ -142,25 +160,25 @@
       }
       #layers .layer small {
         grid-column: 3;
-        color: #6b7280;
+        color: var(--card-sub);
         font-size: 11px;
       }
       #layers .swatch {
         width: 14px;
         height: 14px;
         border-radius: 3px;
-        border: 1px solid rgb(0 0 0 / 0.25);
+        border: 1px solid rgb(255 255 255 / 0.5);
       }
       #layers .legend {
         display: flex;
         gap: 6px;
         align-items: center;
-        color: #4b5563;
-        border-top: 1px solid #e5e7eb;
+        color: var(--card-sub);
+        border-top: 1px solid var(--card-line);
         padding-top: 8px;
       }
       #layers .hint {
-        color: #b45309;
+        color: #fbbf24;
         font-size: 11px;
         min-height: 1em;
       }
@@ -241,23 +259,37 @@
         const info = document.getElementById("info");
         let selected = null;
 
-        // 클릭한 건물 외곽선: Cesium 기본 silhouette 후처리(가장자리 검출 → 원래 화면에 합성)
-        // 판정 색은 그대로 두고 가장자리만 진한 남색. selected가 비면 외곽선 없음
-        // 단계는 켜둔 채 selected만 바꿈: 꺼둔 단계를 처음 켤 때 selected가 안 먹고 모든 건물에 외곽선이 생겼음
-        // (1.146, 확인 후 selected를 다시 넣으면 정상). 평소 화면만 매 프레임 가장자리 검출 비용이 듦
-        // 측정 화면(?bench=1)은 이 분기를 안 타서 후처리 자체가 없음
-        const PPL = Cesium.PostProcessStageLibrary;
-        let edge = null;
-        if (PPL.isSilhouetteSupported(viewer.scene)) {
-          edge = PPL.createEdgeDetectionStage();
-          edge.uniforms.color = Cesium.Color.fromCssColorString("#1e1b4b");
-          edge.uniforms.length = 0.5; // px. 기본값 그대로(얇게)
-          edge.selected = [];
-          viewer.scene.postProcessStages.add(PPL.createSilhouetteStage([edge]));
-        }
-        const outline = (f) => {
-          if (edge) edge.selected = f ? [f] : [];
-        };
+        // 클릭한 건물 외곽선: 직접 만든 후처리 단계(PostProcessStage + czm_selected)
+        // 선택한 건물 픽셀은 그대로 두고(판정 색 유지), 바깥 OUTLINE_PX 안에 선택 건물이 있는 픽셀만 남색 → 이웃 건물과 맞닿은 면도 둘러짐
+        // Cesium 기본 silhouette(edge detection)를 안 쓴 이유: length가 두께가 아님(1.146 실측: 0.5 → 1.5 이상이면 외곽선이 사라짐),
+        // 배경과 맞닿은 가장자리에만 그려짐. czm_selected(인자)는 현재 위치 기준 오프셋으로 동작(공식 문서엔 설명 없음, 1.146 실측)
+        // selected가 비면 외곽선 없음. 측정 화면(?bench=1)은 이 분기를 안 타서 후처리 자체가 없음
+        const OUTLINE_PX = 2; // 300m 높이 관악 zoom을 1/3로 줄여도 보이는 값(1.5는 흐림). 셰이더 반복은 3px까지
+        const outlineStage = viewer.scene.postProcessStages.add(
+          new Cesium.PostProcessStage({
+            name: "building_outline",
+            fragmentShader: `
+              uniform sampler2D colorTexture;
+              in vec2 v_textureCoordinates;
+              uniform vec4 color;
+              uniform float width;
+              void main() {
+                vec4 base = texture(colorTexture, v_textureCoordinates);
+                if (czm_selected(vec2(0.0))) { out_FragColor = base; return; }
+                vec2 px = 1.0 / vec2(textureSize(colorTexture, 0));
+                bool near = false;
+                for (int i = -3; i <= 3; i++)
+                  for (int j = -3; j <= 3; j++) {
+                    if (float(i * i + j * j) > width * width) continue;
+                    if (czm_selected(vec2(float(i), float(j)) * px)) near = true;
+                  }
+                out_FragColor = near ? color : base;
+              }`,
+            uniforms: { color: Cesium.Color.fromCssColorString("#1e1b4b"), width: OUTLINE_PX },
+          }),
+        );
+        outlineStage.selected = [];
+        const outline = (f) => (outlineStage.selected = f ? [f] : []);
 
         const showDetail = () => {
           if (!selected) return;
