@@ -1,0 +1,10 @@
+// 배포 설정: Workers 정적 파일만(Worker 스크립트 없음). dist/는 node scripts/build-web.mjs로 만듦
+// 배포: node scripts/build-web.mjs && npx wrangler deploy
+{
+  "$schema": "https://unpkg.com/wrangler@4.158.0/config-schema.json",
+  "name": "seoul-flood-3d",
+  "compatibility_date": "2026-11-04",
+  "assets": {
+    "directory": "./dist"
+  }
+}
