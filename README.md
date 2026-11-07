@@ -1,6 +1,6 @@
 # 서울 침수흔적 3D: 서울 전역 건물 웹 3D 스트리밍 뷰어
 
-데모: https://seoul-flood-3d.seoul-flood-3d.workers.dev (창 가로 900px 이상 권장)
+배포: https://seoul-flood-3d.seoul-flood-3d.workers.dev (창 가로 900px 이상 권장)
 
 > 국토교통부 GIS건물통합정보와 서울시 침수흔적도를 결합해, 서울 전역 건물을 OGC 3D Tiles 1.1 타일셋으로 변환하고 Three.js로 직접 만든 스트리밍 렌더러로 표시하는 프론트엔드 포트폴리오입니다. 침수 이력이 있는 지역의 지하층 주거 건물 후보를 건물 단위로 걸러 볼 수 있습니다.
 
