@@ -52,7 +52,7 @@ export function buildTileset(root: TileNode, enuOf: Map<string, Enu>, rootError:
   }
   return {
     asset: { version: "1.1" },
-    geometricError: rootError, // 아무것도 안 그렸을 때 빠지는 가장 큰 건물 크기
+    geometricError: rootError, // 아무것도 안 그렸을 때 빠지는 영역 전체의 크기(경계 상자 수평 대각선)
     root: toJson(root, null),
   };
 }

@@ -6,3 +6,10 @@ docs/
 __pycache__/
 .DS_Store
 bench/captures/
+.wrangler/
+
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+dist/
