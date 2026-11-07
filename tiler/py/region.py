@@ -21,4 +21,5 @@ BUILDING_FILE = ROOT / REGIONS[REGION]["building"]
 BUILDING_5186 = WORK / f"{REGION}_building_5186.gpkg"   # s03 → s04
 BUILDING_FLOOD = WORK / f"{REGION}_building_flood.gpkg"  # s04 → s05
 FGB = WORK / f"{REGION}.fgb"                             # s05 → Node 타일러
+TILES_DIR = ROOT / f"data/tiles/{REGION}"                # Node s08 결과 + s09 funnel.json (Node region.ts TILES_DIR와 같은 곳)
 FLOOD_5186 = WORK / "flood_5186.gpkg"   # 침수는 지역과 상관없이 서울 전체 도형이라 이름에 지역을 안 붙임

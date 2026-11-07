@@ -238,7 +238,7 @@ cd renderer && npm install && npm run dev
 
 ```bash
 node bench/compress-tiles.mjs   # 루트에서. data/tiles/**의 .glb·.json 옆에 .br·.gz를 미리 만듦(원본 그대로, 타일러를 다시 돌린 뒤에만)
-node bench/serve.mjs            # http://localhost:8080/viewer/cesium-check.html?bench=1
+node bench/serve.mjs            # http://localhost:8080/viewer/cesium-check.html?bench=1&region=seoul
 ```
 
 - `bench/serve.mjs`는 `python -m http.server 8080`과 포트·경로가 같고, 바뀌는 건 압축뿐입니다. 요청의 `Accept-Encoding`을 보고 미리 만든 `.br` → `.gz` → 원본 순으로 골라 `Content-Encoding`을 붙여 보냅니다.
