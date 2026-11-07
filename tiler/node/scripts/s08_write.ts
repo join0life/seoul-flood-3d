@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import type { Enu } from "../../../shared/geo.js";
+import { toEcef, type Enu } from "../../../shared/geo.js";
 import { writeTileGlb } from "../src/glb.js";
 import { loadBuildings } from "../src/load.js";
 import { buildTileMesh } from "../src/mesh.js";
@@ -34,8 +34,16 @@ for (const tile of tiles) {
   total += glb.byteLength;
   maxSize = Math.max(maxSize, glb.byteLength);
 }
-// Math.max(...배열)은 서울 전체(69만 개)에서 인자가 너무 많아 스택이 넘침 → 반복문으로
-const rootError = buildings.reduce((m, b) => Math.max(m, b.size), -Infinity);
+// 맨 위 geometricError = 아무것도 안 그렸을 때 빠지는 영역 전체의 크기(루트 경계 상자 수평 대각선, m)
+// 전에는 가장 큰 건물 하나(서울 556.7m)라서 첫 화면(-55°, 서울 전체)에서 SSE가 16.89로 문턱 16에 겨우 걸림
+// → 캔버스 가로가 약 1,270px보다 좁으면 루트조차 안 그려졌음. 루트 자신의 값(자식으로 내려갈지)은 그대로
+const [w, s, e, n] = tree.region;
+const midLat = (s + n) / 2, midLon = (w + e) / 2;
+const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const rootError = Math.hypot(
+  dist(toEcef(w, midLat, 0), toEcef(e, midLat, 0)), // 동서 폭(가운데 위도에서)
+  dist(toEcef(midLon, s, 0), toEcef(midLon, n, 0)), // 남북 폭
+);
 writeFileSync(
   resolve(out, "tileset.json"),
   JSON.stringify(buildTileset(tree, enuOf, rootError), null, 2),
