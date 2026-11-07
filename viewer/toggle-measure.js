@@ -89,13 +89,14 @@ export function mountToggleMeasure({ viewer, tileset, layersEl }) {
     return Object.entries(n).map(([k, v]) => `${k}×${v}`).join(" ");
   };
 
-  // 패널 체크박스 찾기(라벨 글자로). 레이어는 label.layer, 연도는 fieldset.years
-  const box = (text) => {
-    const label = [...layersEl.querySelectorAll("label")].find((l) => l.textContent.trim().startsWith(text));
-    if (!label) throw new Error(`[measure] 체크박스 없음: ${text}`);
-    return label.querySelector("input");
+  // 패널 체크박스 찾기. 화면 문구가 아니라 식별자로: 레이어는 id="layer-<LAYERS id>", 연도는 value="<연도>"
+  // (문구를 바꿔도 안 깨지게. 못 찾으면 조용히 엉뚱한 걸 누르지 않고 멈춤)
+  const box = (key) => {
+    const input = layersEl.querySelector(/^\d{4}$/.test(key) ? `fieldset.years input[value="${key}"]` : `#layer-${key}`);
+    if (!input) throw new Error(`[measure] 체크박스 없음: ${key}`);
+    return input;
   };
-  const ensure = (text, on) => box(text).checked !== on && box(text).click();
+  const ensure = (key, on) => box(key).checked !== on && box(key).click();
 
   const buildingsIn = (tiles) => [...tiles].reduce((n, t) => n + (t.content?.featuresLength ?? 0), 0);
   // 그 프레임에 보인 건물 전부: 지금 색 = 지금 스타일이 계산한 색? (검증 회차에서만. 시간 측정이 끝난 뒤에 함)
@@ -120,11 +121,11 @@ export function mountToggleMeasure({ viewer, tileset, layersEl }) {
   }
 
   /** 전환 하나: 자기 task에서 클릭 → 첫 프레임 → 1초 프레임 간격 */
-  async function toggle(label, text, verify) {
+  async function toggle(label, key, verify) {
     const begin = performance.now();
     await waitLoaded();
     await sleep(SETTLE_MS);
-    const input = box(text);
+    const input = box(key);
     const { prev, t0, t1 } = await new Promise((r) =>
       setTimeout(() => {
         const prev = lastRenderEnd;
@@ -156,10 +157,10 @@ export function mountToggleMeasure({ viewer, tileset, layersEl }) {
   }
 
   const TOGGLES = [
-    ["후보 끄기", "현장 확인 후보"],
-    ["후보 켜기", "현장 확인 후보"],
-    ["침수 끄기", "침수 이력"],
-    ["침수 켜기", "침수 이력"],
+    ["후보 끄기", "candidate"],
+    ["후보 켜기", "candidate"],
+    ["침수 끄기", "flood"],
+    ["침수 켜기", "flood"],
     ["2025 추가 (2022→2022+2025)", "2025"],
     ["2022 제거 (2022+2025→2025)", "2022"],
   ];
@@ -170,8 +171,8 @@ export function mountToggleMeasure({ viewer, tileset, layersEl }) {
     // 시작할 때 이미 창이 뒤에 있으면 blur가 안 생겨서 위 기록에 안 잡힘 → 시작 상태를 따로 남김
     const startState = `포커스 ${document.hasFocus() ? "있음" : "없음"}, ${document.visibilityState}`;
     // 시작 상태: 레이어 둘 다 켬, 연도 2022만 (2025를 먼저 끄면 최소 1개 규칙에 안 걸림)
-    ensure("현장 확인 후보", true);
-    ensure("침수 이력", true);
+    ensure("candidate", true);
+    ensure("flood", true);
     ensure("2022", true);
     ensure("2025", false);
 
@@ -187,7 +188,7 @@ export function mountToggleMeasure({ viewer, tileset, layersEl }) {
     const rows = [];
     // 0회차 = 검증 회차(평균에서 뺌): 첫 프레임에 보이는 건물 색이 전부 새 스타일인지
     for (let r = 0; r <= rounds; r++) {
-      for (const [label, text] of TOGGLES) rows.push({ 회차: r === 0 ? "검증" : r, ...(await toggle(label, text, r === 0)) });
+      for (const [label, key] of TOGGLES) rows.push({ 회차: r === 0 ? "검증" : r, ...(await toggle(label, key, r === 0)) });
       // 되돌리기(재지 않음): 2025 → 2022+2025 → 2022
       ensure("2022", true);
       await sleep(300);

@@ -34,7 +34,9 @@ P = {k: k for k in ("floodYears", "ugrndFlr", "isResidential", "heightSource")}
 for name in P.values():
     if name not in PROPS:
         raise SystemExit(f"schema/building.json에 {name} 속성이 없음")
-DEFAULT_HEIGHT = next(v["value"] for v in SCHEMA["enums"]["heightSource"]["values"] if v["name"] == "DEFAULT")
+DEFAULT_HEIGHT = next((v["value"] for v in SCHEMA["enums"]["heightSource"]["values"] if v["name"] == "DEFAULT"), None)
+if DEFAULT_HEIGHT is None:
+    raise SystemExit("schema/building.json heightSource enum에 DEFAULT 값이 없음")
 
 SIGUNGU_FILE = ROOT / "tiler/sigungu.csv"
 SIGUNGU = "sigungu"  # fgb 전용 칸(s05 FGB_ONLY)

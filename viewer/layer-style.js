@@ -145,6 +145,7 @@ export function mountLayerPanel(parent, state, onChange) {
     const box = el("input", {
       type: "checkbox",
       checked: state.years.includes(y),
+      value: String(y), // 측정 스크립트가 문구 대신 이 값으로 찾음
     });
     box.onchange = () => {
       // 연도를 다 끄면 칠할 침수가 없어 화면이 전부 회색 → 마지막 하나는 못 끄게 되돌림
