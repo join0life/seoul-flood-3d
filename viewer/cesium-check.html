@@ -410,7 +410,7 @@
       // 지역 이름은 data/tiles/ 아래 폴더 이름. 경로 문자만 허용. ?region 없으면 서울 전체(측정 화면도 같음)
       const region = (params.get("region") ?? "seoul").replace(/[^a-z0-9_-]/gi, "");
       // 타일을 받을 곳(tileset.json·GLB·funnel.json). ?tiles=local|r2로 고름(R2 객체 이름 = <지역>/…)
-      // 기본: 로컬 개발(localhost·127.0.0.1)은 data/tiles, 배포본(Pages)은 R2. 배포본에는 data/가 없음
+      // 기본: 로컬 개발(localhost·127.0.0.1)은 data/tiles, 배포본(Workers 정적 파일)은 R2. 배포본에는 data/가 없음
       // 주소를 쿼리로 직접 받지 않고 이름으로만 고름 → 링크 하나로 다른 사이트의 파일을 읽게 만들 수 없게
       const TILE_SOURCES = {
         local: "../data/tiles",
@@ -418,7 +418,9 @@
       };
       const LOCAL_HOST = ["localhost", "127.0.0.1"].includes(location.hostname);
       const defaultTiles = LOCAL_HOST ? "local" : "r2";
-      const tilesBase = `${TILE_SOURCES[params.get("tiles")] ?? TILE_SOURCES[defaultTiles]}/${region}`; // 모르는 이름이면 기본값
+      // 모르는 이름이면 기본값. 자기 키만 봄: TILE_SOURCES["toString"]처럼 상속된 속성이 주소로 쓰이지 않게
+      const tilesKey = params.get("tiles");
+      const tilesBase = `${Object.hasOwn(TILE_SOURCES, tilesKey ?? "") ? TILE_SOURCES[tilesKey] : TILE_SOURCES[defaultTiles]}/${region}`;
       const tilesetUrl = `${tilesBase}/tileset.json`;
 
       let tileset;
