@@ -409,7 +409,17 @@
 
       // 지역 이름은 data/tiles/ 아래 폴더 이름. 경로 문자만 허용. ?region 없으면 서울 전체(측정 화면도 같음)
       const region = (params.get("region") ?? "seoul").replace(/[^a-z0-9_-]/gi, "");
-      const tilesetUrl = `../data/tiles/${region}/tileset.json`;
+      // 타일을 받을 곳(tileset.json·GLB·funnel.json). ?tiles=local|r2로 고름(R2 객체 이름 = <지역>/…)
+      // 기본: 로컬 개발(localhost·127.0.0.1)은 data/tiles, 배포본(Pages)은 R2. 배포본에는 data/가 없음
+      // 주소를 쿼리로 직접 받지 않고 이름으로만 고름 → 링크 하나로 다른 사이트의 파일을 읽게 만들 수 없게
+      const TILE_SOURCES = {
+        local: "../data/tiles",
+        r2: "https://pub-e82cc45cbf6040088572913e178ae01b.r2.dev",
+      };
+      const LOCAL_HOST = ["localhost", "127.0.0.1"].includes(location.hostname);
+      const defaultTiles = LOCAL_HOST ? "local" : "r2";
+      const tilesBase = `${TILE_SOURCES[params.get("tiles")] ?? TILE_SOURCES[defaultTiles]}/${region}`; // 모르는 이름이면 기본값
+      const tilesetUrl = `${tilesBase}/tileset.json`;
 
       let tileset;
       if (BENCH) {
@@ -506,7 +516,7 @@
         // 2-4 지표 + 2-5 구 목록: 숫자는 전부 타일러 s09의 funnel.json(지역 전체·구별). 화면에서 세지 않음
         const { loadFunnel, renderFunnel, yearKey } = await import("./funnel.js");
         const { mountDistrictList } = await import("./district-list.js");
-        const funnelData = await loadFunnel(`../data/tiles/${region}/funnel.json`);
+        const funnelData = await loadFunnel(`${tilesBase}/funnel.json`);
         const funnelEl = document.getElementById("funnel");
         const districtsEl = document.getElementById("districts");
 
