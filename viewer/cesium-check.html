@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <title>0-9 Cesium 검증</title>
+    <title>서울 침수흔적 3D</title>
     <!-- integrity: CDN 파일이 바뀌면 로드 거부. cesium 버전을 올리면 해시도 다시 계산 -->
     <script
       src="https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/Cesium.js"
@@ -453,6 +453,23 @@
 
         tileset = await Cesium.Cesium3DTileset.fromUrl(tilesetUrl);
         viewer.scene.primitives.add(tileset);
+
+        // 트랙패드 핀치 확대·축소. Chrome은 핀치를 "Ctrl을 누른 wheel"로 보냄(Safari는 확인 안 함)
+        // Cesium 기본 확대 입력(오른쪽 드래그·wheel·터치 핀치)에는 Ctrl+wheel이 없어서, 이벤트만 막히고 아무 일도 안 일어났음
+        // 핀치 한 번의 deltaY는 마우스 휠 한 칸(약 100)보다 훨씬 작아서 그대로 넘기면 느림
+        // → Ctrl+wheel을 Cesium보다 먼저(부모에서 capture) 받아, deltaY에 배율을 곱한 보통 wheel로 바꿔 캔버스에 다시 보냄
+        // 측정 화면(?bench=1)은 입력을 안 쓰므로 여기(평소 화면)만
+        const PINCH_ZOOM_SCALE = 10;
+        viewer.container.addEventListener("wheel", (e) => {
+          if (!e.ctrlKey) return;
+          e.preventDefault(); // 브라우저 페이지 확대 막기
+          e.stopPropagation(); // Cesium은 원래 이벤트를 못 받음(받아도 Ctrl+wheel은 안 씀)
+          // 다시 보내는 이벤트도 이 리스너를 지나감 → ctrlKey: false를 꼭 둬야 위 첫 줄에서 빠져나감(빼면 무한 반복)
+          viewer.scene.canvas.dispatchEvent(new WheelEvent("wheel", {
+            bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, ctrlKey: false,
+            deltaMode: e.deltaMode, deltaX: e.deltaX, deltaY: e.deltaY * PINCH_ZOOM_SCALE,
+          }));
+        }, { capture: true, passive: false });
 
         // 2-1 레이어 색칠(침수 이력·현장 확인 후보). 측정 화면(?bench=1)에는 안 붙임 → 측정 조건 그대로
         const { buildStyle, mountLayerPanel, DEFAULT_STATE } = await import("./layer-style.js");
