@@ -402,8 +402,8 @@ FPS, draw call, 로드된 타일 수, 타일 메모리를 화면에 표시합니
 - CesiumJS 비교는 건물 타일만 그리는 조건(지구본·영상 끔)에 한정한 결과이며, 범용 엔진 전체의 성능 비교가 아닙니다.
 
 ## 11. 화면
-
-【 】 (웹 / 모바일 캡처)
+<img width="1680" height="835" alt="image" src="https://github.com/user-attachments/assets/5736fc89-060f-4f2e-b1b0-61f1b95e7f3c" />
+<img width="1680" height="835" alt="image" src="https://github.com/user-attachments/assets/a8d434b6-8608-4773-8e91-d07d19b7ab34" />
 
 ## 12. References
 
