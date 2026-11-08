@@ -1,4 +1,4 @@
-  <!doctype html>
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
@@ -464,8 +464,9 @@
           if (!e.ctrlKey) return;
           e.preventDefault(); // 브라우저 페이지 확대 막기
           e.stopPropagation(); // Cesium은 원래 이벤트를 못 받음(받아도 Ctrl+wheel은 안 씀)
+          // 다시 보내는 이벤트도 이 리스너를 지나감 → ctrlKey: false를 꼭 둬야 위 첫 줄에서 빠져나감(빼면 무한 반복)
           viewer.scene.canvas.dispatchEvent(new WheelEvent("wheel", {
-            bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY,
+            bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, ctrlKey: false,
             deltaMode: e.deltaMode, deltaX: e.deltaX, deltaY: e.deltaY * PINCH_ZOOM_SCALE,
           }));
         }, { capture: true, passive: false });
